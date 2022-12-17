@@ -10,6 +10,6 @@ Anneal    = "e4d9eb7f-b088-426e-aeb5-1c0dae3d8abb"
 MQLib_jll = "4dedf8fe-8d9a-5fb8-8563-19379e8d5c54"
 
 [compat]
-Anneal    = "0.5.6"
+Anneal    = "0.5.7"
 MQLib_jll = "0.1"
 julia     = "1.6"
