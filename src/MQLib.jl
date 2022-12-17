@@ -116,7 +116,11 @@ function Anneal.sample(sampler::Optimizer{T}) where {T}
     mktempdir() do path
         qubo_file = joinpath(path, "file.qubo")
 
-        write(qubo_file, sampler, QUBOTools.QUBO(; style = :mqlib))
+        QUBOTools.write_model(
+            qubo_file,
+            sampler,
+            QUBOTools.QUBO(; style = :mqlib)
+        )
 
         MQLib_jll.MQLib() do exe
             cmd = `
