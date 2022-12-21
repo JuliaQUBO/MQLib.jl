@@ -1,108 +1,53 @@
 module MQLib
 
-using Anneal
 import MQLib_jll
+using Anneal
+using Printf
 
-const MQLIB_QUBO_HEURISTICS = Set{String}([
-    "ALKHAMIS1998",
-    "BEASLEY1998SA",
-    "BEASLEY1998TS",
-    "GLOVER1998a",
-    "GLOVER2010",
-    "HASAN2000GA",
-    "HASAN2000TS",
-    "KATAYAMA2000",
-    "KATAYAMA2001",
-    "LODI1999",
-    "LU2010",
-    "MERZ1999CROSS",
-    "MERZ1999GLS",
-    "MERZ1999MUTATE",
-    "MERZ2002GREEDY",
-    "MERZ2002GREEDYKOPT",
-    "MERZ2002KOPT",
-    "MERZ2002ONEOPT",
-    "MERZ2004",
-    "PALUBECKIS2004bMST1",
-    "PALUBECKIS2004bMST2",
-    "PALUBECKIS2004bMST3",
-    "PALUBECKIS2004bMST4",
-    "PALUBECKIS2004bMST5",
-    "PALUBECKIS2004bSTS",
-    "PALUBECKIS2006",
-    "PARDALOS2008",
-])
+export get_heuristic, set_heuristic, unset_heuristic, list_heuristics
+
+const _MQLIB_HEURISTICS = Dict{String,String}()
+
+function __init__()
+    MQLib_jll.MQLib() do exe
+        for m in eachmatch(r"([a-zA-Z0-9]+)\r?\n  ([^\r\n]+)\r?\n?", read(`$exe -l`, String))
+            push!(_MQLIB_HEURISTICS, m[1] => m[2])
+        end
+    end
+end
 
 Anneal.@anew Optimizer begin
     name   = "MQLib"
     sense  = :max
     domain = :bool
     attributes = begin
-        RandomSeed["seed"]::Union{Integer,Nothing} = nothing
-        NumberOfReads["num_reads"]::Integer        = 1
-        QUBOHeuristic["heuristic"]::String         = "ALKHAMIS1998"
+        RandomSeed["seed"]::Union{Integer,Nothing}    = nothing
+        NumberOfReads["num_reads"]::Integer           = 1
+        Heuristic["heuristic"]::Union{String,Nothing} = nothing
     end
 end
-
-@doc raw"""
-    MQLib.Optimizer{T} where T
-
-Available QUBO Heuristics are:
-
-- ALKHAMIS1998: Simulated annealing
-- BEASLEY1998SA: Simulated annealing
-- BEASLEY1998TS: Tabu search
-- GLOVER1998a: Tabu search
-- GLOVER2010: Tabu search with long-term memory
-- HASAN2000GA: Genetic algorithm
-- HASAN2000TS: Tabu search
-- KATAYAMA2000: Genetic algorithm with k-opt local search
-- KATAYAMA2001: Simulated annealing
-- LODI1999: Genetic algorithm
-- LU2010: Genetic algorithm with tabu search
-- MERZ1999CROSS: Genetic algorithm, with crossover only
-- MERZ1999GLS: Genetic algorithm, with crossover and local search
-- MERZ1999MUTATE: Genetic algorithm, with mutation only
-- MERZ2002GREEDY: GRASP without local search
-- MERZ2002GREEDYKOPT: k-opt local search with GRASP
-- MERZ2002KOPT: k-opt local search with random restarts
-- MERZ2002ONEOPT: 1-opt local search with random restarts
-- MERZ2004: Genetic algorithm with k-opt local search
-- PALUBECKIS2004bMST1: Tabu search procedure
-- PALUBECKIS2004bMST2: Iterated tabu search
-- PALUBECKIS2004bMST3: Tabu search with GRASP
-- PALUBECKIS2004bMST4: Tabu search with long-term memory
-- PALUBECKIS2004bMST5: Iterated tabu search
-- PALUBECKIS2004bSTS: Tabu search procedure
-- PALUBECKIS2006: Iterated tabu search
-- PARDALOS2008: Global equilibrium search
-""" Optimizer
 
 function Anneal.sample(sampler::Optimizer{T}) where {T}
     α = QUBOTools.scale(sampler)
     β = QUBOTools.offset(sampler)
 
-    num_reads = MOI.get(sampler, MQLib.NumberOfReads())
+    num_reads      = MOI.get(sampler, MQLib.NumberOfReads())
+    silent         = MOI.get(sampler, MOI.Silent())
+    heuristic      = MOI.get(sampler, MQLib.Heuristic())
+    random_seed    = MOI.get(sampler, MQLib.RandomSeed())
+    time_limit_sec = MOI.get(sampler, MOI.TimeLimitSec())
 
     if num_reads <= 0
         error("Number of reads must be a positive integer")
-    end
-
-    qubo_heuristic = MOI.get(sampler, MQLib.QUBOHeuristic())
+    end 
     
-    if qubo_heuristic ∉ MQLIB_QUBO_HEURISTICS
-        error("Invalid QUBO Heuristic code '$qubo_heuristic'")
+    if !isnothing(heuristic) && !haskey(_MQLIB_HEURISTICS, heuristic)
+        error("Invalid QUBO Heuristic code '$heuristic'")
     end
 
-    random_seed = MOI.get(sampler, MQLib.RandomSeed())
-
-    if isnothing(random_seed)
-        random_seed = trunc(Int, time()) % 65_536
-    else
-        random_seed = random_seed % 65_536
+    if !isnothing(random_seed)
+        random_seed %= 65_536
     end
-
-    time_limit_sec = MOI.get(sampler, MOI.TimeLimitSec())
 
     run_time_limit = if isnothing(time_limit_sec)
         1.0 / num_reads
@@ -110,8 +55,10 @@ function Anneal.sample(sampler::Optimizer{T}) where {T}
         time_limit_sec / num_reads
     end
 
-    runtime = 0.0
-    samples = Anneal.Sample{T,Int}[]
+    samples  = Anneal.Sample{T,Int}[]
+    metadata = Dict{String,Any}(
+        "time" => Dict{String,Any}()
+    )
 
     mktempdir() do path
         qubo_file = joinpath(path, "file.qubo")
@@ -121,39 +68,134 @@ function Anneal.sample(sampler::Optimizer{T}) where {T}
             sampler,
             QUBOTools.QUBO(; style = :mqlib)
         )
-
+        
+        args = _mqlib_args(;
+            qubo_file      = qubo_file,
+            heuristic      = heuristic,
+            random_seed    = random_seed,
+            run_time_limit = run_time_limit,
+        )
+        
         MQLib_jll.MQLib() do exe
-            cmd = `
-                $exe
-                -h  $qubo_heuristic
-                -fQ $qubo_file
-                -r  $run_time_limit
-                -nv
-                -ps
-            `
+            cmd = `$exe $args`
+            t   = 0.0
 
-            for _ = 1:num_reads
-                let lines = readlines(cmd)
-                    info = split(lines[begin], ',')
+            _print_header(silent, heuristic)
 
-                    λ = parse(T, info[4])
-                    ψ = parse.(Int, split(lines[end], ' '))
-                    
-                    push!(samples, Sample{T}(ψ, α * (λ + β)))
+            for i = 1:num_reads
+                lines = readlines(cmd)
+                info  = split(lines[begin], ',')
 
-                    runtime += parse(Float64, info[5])
-                end
+                λ = parse(T, info[4])
+                ψ = parse.(Int, split(lines[end], ' '))
+                s = Sample{T}(ψ, α * (λ + β))
+
+                push!(samples, s)
+
+                m = collect(eachmatch(r"(([0-9]+):([0-9]+))+", info[6]))
+                λ̄ = parse.(Float64, getindex.(m, 2))
+                t̄ = parse.(Float64, getindex.(m, 3))
+
+                _print_iter(silent, i, λ̄, t .+ t̄)
+                
+                t += parse(Float64, info[5])
+            end
+
+            _print_footer(silent)
+
+            metadata["time"]["effective"] = t
+        end
+    end
+
+    return Anneal.SampleSet{T}(samples, metadata)
+end
+
+function _print_header(silent::Bool, heuristic::Union{String,Nothing})
+    if !silent
+        if isnothing(heuristic)
+            heuristic = "Hyper-Heuristic"
+        end
+
+        print(
+            """
+            * MQLib
+            * Heuristic: $(heuristic)
+
+            *------*-------------*--------*
+            | iter | value       | time   |
+            *------*-------------*--------*
+            """
+        )
+    end
+
+    return nothing
+end
+
+function _print_footer(silent::Bool)
+    if !silent
+        println("*------*-------------*--------*")
+    end
+end
+
+function _print_iter(silent::Bool, i::Integer, λ::Vector{Float64}, t::Vector{Float64})
+    if !silent
+        for (λ̄, t̄) in zip(λ, t)
+            if isnothing(i)
+                @printf("|      | %11.2f | %6.2f |\n", λ̄, t̄)
+            else
+                @printf("| %4d | %11.2f | %6.2f |\n", i, λ̄, t̄)
+                
+                i = nothing
             end
         end
     end
 
-    metadata = Dict{String,Any}(
-        "time" => Dict{String,Any}(
-            "effective" => runtime,
-        )
-    )
+    return nothing
+end
 
-    return Anneal.SampleSet{T}(samples, metadata)
+function _mqlib_args(;
+    qubo_file::String,
+    heuristic::Union{String,Nothing},
+    random_seed::Union{Integer,Nothing},
+    run_time_limit::Float64,
+)
+    args = `-fQ $qubo_file -r $run_time_limit -nv -ps`
+
+    if !isnothing(random_seed)
+        args = `$args -s $random_seed`
+    end
+
+    if isnothing(heuristic)
+        args = `$args -hh`
+    else
+        args = `$args -h $heuristic`
+    end
+
+    return args
+end
+
+function unset_heuristic(model)
+    set_heuristic(model, nothing)
+
+    return nothing
+end
+
+function set_heuristic(model, heuristic::Union{String,Nothing} = nothing)
+    MOI.set(model, MQLib.Heuristic(), heuristic)
+
+    return nothing
+end
+
+function get_heuristic(model)
+    return MOI.get(model, MQLib.Heuristic())
+end
+
+function list_heuristics()
+    for (heuristic, description) in sort(collect(_MQLIB_HEURISTICS))
+        println("$(heuristic): \n  $(description)")
+    end    
+
+    return nothing
 end
 
 end # module
