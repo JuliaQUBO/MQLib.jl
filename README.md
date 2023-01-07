@@ -1,4 +1,6 @@
 # MQLib.jl
+[![DOI](https://zenodo.org/badge/568213607.svg)](https://zenodo.org/badge/latestdoi/568213607)
+
 [MQLib](https://github.com/MQLib/MQLib) wrapper for JuMP (ft. Anneal.jl)
 
 ## Installation
