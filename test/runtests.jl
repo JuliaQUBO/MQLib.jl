@@ -1,5 +1,6 @@
-import MQLib
+import MQLib: MOI, MQLib, QUBODrivers
 
-MQLib.test(; examples=true) do model
+QUBODrivers.test(MQLib.Optimizer) do model
+    MOI.set(model, MOI.Silent(), true)
     MQLib.set_heuristic(model, first(MQLib.heuristics()))
 end

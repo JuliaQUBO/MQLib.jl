@@ -1,27 +1,34 @@
 module MQLib
 
 import MQLib_jll
-using Anneal
+import QUBODrivers:
+    MOI,
+    QUBODrivers,
+    QUBOTools,
+    Sample,
+    SampleSet,
+    @setup,
+    sample
+
 using Printf
 
-export get_heuristic, set_heuristic, unset_heuristic, list_heuristics
-
-const _MQLIB_HEURISTICS = Dict{String,String}()
+const HEURISTICS = Dict{String,String}()
 
 function __init__()
     MQLib_jll.MQLib() do exe
         ms = eachmatch(r"([a-zA-Z0-9]+)\r?\n  ([^\r\n]+)\r?\n?", read(`$exe -l`, String))
 
         for m in ms
-            push!(_MQLIB_HEURISTICS, m[1] => m[2])
+            push!(HEURISTICS, m[1] => m[2])
         end
     end
 end
 
-Anneal.@anew Optimizer begin
-    name = "MQLib"
-    sense = :max
-    domain = :bool
+@setup Optimizer begin
+    name       = "MQLib"
+    sense      = :max
+    domain     = :bool
+    version    = v"0.1.0"
     attributes = begin
         RandomSeed["seed"]::Union{Integer,Nothing} = nothing
         NumberOfReads["num_reads"]::Integer = 1
@@ -29,7 +36,7 @@ Anneal.@anew Optimizer begin
     end
 end
 
-function Anneal.sample(sampler::Optimizer{T}) where {T}
+function sample(sampler::Optimizer{T}) where {T}
     α = QUBOTools.scale(sampler)
     β = QUBOTools.offset(sampler)
 
@@ -43,7 +50,7 @@ function Anneal.sample(sampler::Optimizer{T}) where {T}
         error("Number of reads must be a positive integer")
     end
 
-    if !isnothing(heuristic) && !haskey(_MQLIB_HEURISTICS, heuristic)
+    if !isnothing(heuristic) && !haskey(HEURISTICS, heuristic)
         error("Invalid QUBO Heuristic code '$heuristic'")
     end
 
@@ -57,28 +64,28 @@ function Anneal.sample(sampler::Optimizer{T}) where {T}
         time_limit_sec / num_reads
     end
 
-    samples  = Anneal.Sample{T,Int}[]
+    samples  = Sample{T,Int}[]
     metadata = Dict{String,Any}("time" => Dict{String,Any}())
 
-    mktempdir() do path
-        qubo_file = joinpath(path, "file.qubo")
+    mktempdir() do temp_path
+        file_path = joinpath(temp_path, "file.qubo")
 
         fmt = QUBOTools.QUBO(QUBOTools.BoolDomain(), QUBOTools.MQLibStyle())
 
         args = _mqlib_args(;
-            qubo_file      = qubo_file,
+            file_path      = file_path,
             heuristic      = heuristic,
             random_seed    = random_seed,
             run_time_limit = run_time_limit,
         )
 
-        QUBOTools.write_model(qubo_file, sampler, fmt)
+        QUBOTools.write_model(file_path, sampler, fmt)
 
         MQLib_jll.MQLib() do exe
             cmd = `$exe $args`
-            
+
             _print_header(silent, heuristic)
-            
+
             t = 0.0
 
             for i = 1:num_reads
@@ -105,7 +112,7 @@ function Anneal.sample(sampler::Optimizer{T}) where {T}
         end
     end
 
-    return Anneal.SampleSet{T}(samples, metadata)
+    return SampleSet{T}(samples, metadata)
 end
 
 function _print_header(silent::Bool, heuristic::Union{String,Nothing})
@@ -155,12 +162,12 @@ function _print_iter(silent::Bool, i::Integer, λ::Vector{Float64}, t::Vector{Fl
 end
 
 function _mqlib_args(;
-    qubo_file::String,
+    file_path::String,
     heuristic::Union{String,Nothing},
     random_seed::Union{Integer,Nothing},
     run_time_limit::Float64,
 )
-    args = `-fQ $qubo_file -r $run_time_limit -nv -ps`
+    args = `-fQ $file_path -r $run_time_limit -nv -ps`
 
     if !isnothing(random_seed)
         args = `$args -s $random_seed`
@@ -192,12 +199,12 @@ function get_heuristic(model)
 end
 
 function heuristics()
-    return sort!(collect(keys(_MQLIB_HEURISTICS)))
+    return sort!(collect(keys(HEURISTICS)))
 end
 
 function show_heuristics()
     for heuristic in heuristics()
-        println("$(heuristic): \n  $(_MQLIB_HEURISTICS[heuristic])")
+        println("$(heuristic): \n  $(HEURISTICS[heuristic])")
     end
 
     return nothing
