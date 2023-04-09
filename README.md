@@ -1,7 +1,8 @@
 # MQLib.jl
 [![DOI](https://zenodo.org/badge/568213607.svg)](https://zenodo.org/badge/latestdoi/568213607)
+[![QUBODRIVERS](https://img.shields.io/badge/Powered%20by-QUBODrivers.jl-%20%234063d8)](https://github.com/psrenergy/QUBODrivers.jl)
 
-[MQLib](https://github.com/MQLib/MQLib) wrapper for JuMP (ft. Anneal.jl)
+[MQLib](https://github.com/MQLib/MQLib) wrapper for JuMP.
 
 ## Installation
 ```julia
