@@ -182,19 +182,19 @@ function _mqlib_args(;
     random_seed::Union{Integer,Nothing},
     run_time_limit::Float64,
 )
-    args = `-fQ $file_path -r $run_time_limit -nv -ps`
-
-    if !isnothing(random_seed)
-        args = `$args -s $random_seed`
-    end
-
-    if isnothing(heuristic)
-        args = `$args -hh`
+    heur = if isnothing(heuristic)
+        `-hh`
     else
-        args = `$args -h $heuristic`
+        `-h $heuristic`
     end
 
-    return args
+    seed = if isnothing(random_seed)
+        ``
+    else
+        `-s $random_seed`
+    end
+
+    return `$heur -fQ $file_path -r $run_time_limit -nv -ps $seed`
 end
 
 function unset_heuristic(model)
