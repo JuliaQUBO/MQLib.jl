@@ -1,7 +1,7 @@
 name: CompatHelper
 on:
   schedule:
-    - cron: '0 0 * * 1'
+    - cron: '33 17 * * 2'
   workflow_dispatch:
 permissions:
   contents: write
