@@ -3,14 +3,10 @@ module MQLib
 using Printf
 
 import MQLib_jll
-import QUBODrivers:
-    MOI,
-    QUBODrivers,
-    QUBOTools,
-    Sample,
-    SampleSet,
-    @setup,
-    sample
+import QUBO
+import MathOptInterface as MOI
+QUBODrivers = QUBO.QUBODrivers
+QUBOTools = QUBO.QUBOTools
 
 const __VERSION__ = v"0.1.0"
 const _HEURISTICS = Dict{String,String}()
@@ -27,7 +23,7 @@ function __init__()
     return nothing
 end
 
-@setup Optimizer begin
+QUBODrivers.@setup Optimizer begin
     name       = "MQLib"
     version    = __VERSION__
     attributes = begin
@@ -37,7 +33,7 @@ end
     end
 end
 
-function sample(sampler::Optimizer{T}) where {T}
+function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     n, L, Q, α, β = QUBOTools.qubo(sampler, :dict; sense = :max, domain = :bool)
 
     V = Set{Int}(1:n)
@@ -74,7 +70,7 @@ function sample(sampler::Optimizer{T}) where {T}
         time_limit_sec / num_reads
     end
 
-    samples  = Sample{T,Int}[]
+    samples  = QUBODrivers.Sample{T,Int}[]
     metadata = Dict{String,Any}(
         "time"   => Dict{String,Any}(),
         "origin" => Dict{String,Any}(
@@ -109,7 +105,7 @@ function sample(sampler::Optimizer{T}) where {T}
 
                 λ = parse(T, info[4])
                 ψ = parse.(Int, split(lines[end], ' '))
-                s = Sample{T}(ψ, α * (λ + β))
+                s = QUBODrivers.Sample{T}(ψ, α * (λ + β))
 
                 push!(samples, s)
 
@@ -127,7 +123,7 @@ function sample(sampler::Optimizer{T}) where {T}
         end
     end
 
-    return SampleSet{T}(samples, metadata; sense = :max, domain = :bool)
+    return QUBOTools.SampleSet{T}(samples, metadata; sense = :max, domain = :bool)
 end
 
 function _print_header(silent::Bool, heuristic::Union{String,Nothing})
