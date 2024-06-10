@@ -1,7 +1,7 @@
 name = "MQLib"
 uuid = "16f11440-1623-44c9-850c-358a6c72f3c9"
 authors = ["pedromxavier <pedroxavier@psr-inc.com>", "pedroripper <pedroripper@psr-inc.com>"]
-version = "0.3.0"
+version = "0.4.0"
 
 [deps]
 MQLib_jll = "4dedf8fe-8d9a-5fb8-8563-19379e8d5c54"
