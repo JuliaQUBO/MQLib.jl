@@ -3,16 +3,15 @@ module MQLib
 using Printf
 
 import MQLib_jll
-import QUBO
+import QUBOTools
+import QUBODrivers
 import MathOptInterface as MOI
-QUBODrivers = QUBO.QUBODrivers
-QUBOTools = QUBO.QUBOTools
 
 const __VERSION__ = v"0.1.0"
 const _HEURISTICS = Dict{String,String}()
 
 function __init__()
-    MQLib_jll.MQLib() do exe
+    let exe = MQLib_jll.MQLib()
         ms = eachmatch(r"([a-zA-Z0-9]+)\r?\n\s+([^\r\n]+)\r?\n?", read(`$exe -l`, String))
 
         for m in ms
@@ -92,13 +91,13 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
 
         QUBOTools.write_model(file_path, model, QUBOTools.QUBO(:mqlib))
 
-        MQLib_jll.MQLib() do exe
+        let exe = MQLib_jll.MQLib()
             cmd = `$exe $args`
 
             _print_header(silent, heuristic)
 
             t = 0.0
-
+            
             for i = 1:num_reads
                 lines = readlines(cmd)
                 info  = split(lines[begin], ',')

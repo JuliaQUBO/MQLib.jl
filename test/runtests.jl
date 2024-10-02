@@ -1,4 +1,5 @@
-import MQLib: MOI, MQLib, QUBO.QUBODrivers
+import MQLib
+import MQLib: MOI, QUBODrivers
 
 QUBODrivers.test(MQLib.Optimizer) do model
     MOI.set(model, MOI.Silent(), true)
