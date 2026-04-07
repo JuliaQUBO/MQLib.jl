@@ -89,7 +89,7 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
             run_time_limit,
         )
 
-        QUBOTools.write_model(file_path, model, QUBOTools.QUBO(:mqlib))
+        QUBOTools.write_model(file_path, model, QUBOTools.Format{:qubo}(; style = :mqlib))
 
         let exe = MQLib_jll.MQLib()
             cmd = `$exe $args`
