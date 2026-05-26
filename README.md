@@ -49,3 +49,9 @@ To list available heuristics and their descriptions, run:
 ```julia
 MQLib.show_heuristics()
 ```
+
+## Authors
+
+- pedromxavier <mail@pedro.ϵλ>
+- pedroripper <pedroripper@psr-inc.com>
+- David E. Bernal Neira <dbernaln@purdue.edu>

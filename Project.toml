@@ -1,6 +1,6 @@
 name = "MQLib"
 uuid = "16f11440-1623-44c9-850c-358a6c72f3c9"
-authors = ["pedromxavier <mail@pedro.ϵλ>", "pedroripper <pedroripper@psr-inc.com>"]
+authors = ["pedromxavier <mail@pedro.ϵλ>", "pedroripper <pedroripper@psr-inc.com>", "David E. Bernal Neira <dbernaln@purdue.edu>"]
 version = "0.4.1"
 
 [deps]

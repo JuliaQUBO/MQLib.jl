@@ -9,6 +9,18 @@ import MathOptInterface as MOI
 
 const __VERSION__ = v"0.1.0"
 const _HEURISTICS = Dict{String,String}()
+const _MQLIB_STDIN = "/dev/stdin"
+
+abstract type _MQLibInput end
+
+struct _MQLibFileInput <: _MQLibInput
+    file_path::String
+end
+
+struct _MQLibStdinInput <: _MQLibInput
+    data::Vector{UInt8}
+    file_path::String
+end
 
 function __init__()
     let exe = MQLib_jll.MQLib()
@@ -80,16 +92,14 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     )
 
     mktempdir() do temp_path
-        file_path = joinpath(temp_path, "model.qubo")
+        input = _mqlib_input(model, joinpath(temp_path, "model.qubo"))
 
         args = _mqlib_args(;
-            file_path,
+            file_path = _mqlib_file_path(input),
             heuristic,
             random_seed,
             run_time_limit,
         )
-
-        QUBOTools.write_model(file_path, model, QUBOTools.Format{:qubo}(; style = :mqlib))
 
         let exe = MQLib_jll.MQLib()
             cmd = `$exe $args`
@@ -99,7 +109,7 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
             t = 0.0
             
             for i = 1:num_reads
-                lines = readlines(cmd)
+                lines = _mqlib_readlines(cmd, input)
                 info  = split(lines[begin], ',')
 
                 λ = parse(T, info[4])
@@ -123,6 +133,30 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     end
 
     return QUBOTools.SampleSet{T}(samples, metadata; sense = :max, domain = :bool)
+end
+
+function _mqlib_input(model::QUBOTools.AbstractModel, file_path::String)
+    if _supports_mqlib_stdin()
+        io = IOBuffer()
+
+        QUBOTools.write_model(io, model, QUBOTools.Format{:qubo}(; style = :mqlib))
+
+        return _MQLibStdinInput(take!(io), _MQLIB_STDIN)
+    else
+        QUBOTools.write_model(file_path, model, QUBOTools.Format{:qubo}(; style = :mqlib))
+
+        return _MQLibFileInput(file_path)
+    end
+end
+
+_mqlib_file_path(input::_MQLibInput) = input.file_path
+
+_supports_mqlib_stdin() = Sys.isunix() && ispath(_MQLIB_STDIN)
+
+_mqlib_readlines(cmd::Cmd, input::_MQLibFileInput) = readlines(cmd)
+
+function _mqlib_readlines(cmd::Cmd, input::_MQLibStdinInput)
+    return readlines(pipeline(cmd; stdin = IOBuffer(input.data)))
 end
 
 function _print_header(silent::Bool, heuristic::Union{String,Nothing})
