@@ -10,6 +10,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <sys/time.h>
 #include <utility>
 #include <vector>
 
@@ -98,6 +99,13 @@ std::string model_path(const std::string &data_dir, const std::string &code) {
 bool file_exists(const std::string &path) {
     std::ifstream file(path.c_str());
     return file.good();
+}
+
+double elapsed_seconds(const struct timeval &start) {
+    struct timeval end;
+    gettimeofday(&end, 0);
+    return (end.tv_sec - start.tv_sec) +
+        0.000001 * (end.tv_usec - start.tv_usec);
 }
 
 void update_hyperheuristic_choice(
@@ -359,6 +367,7 @@ int solve_qubo_impl(
     std::string selected;
     const bool validation = false;
     bool qubo_solution_uses_original_instance = true;
+    double hyperheuristic_runtime_seconds = -1.0;
 
     if (has_text(input->heuristic)) {
         const std::string requested(input->heuristic);
@@ -388,6 +397,9 @@ int solve_qubo_impl(
         }
     } else {
         mi.reset(new MaxCutInstance(qi));
+        struct timeval hyperheuristic_start;
+        gettimeofday(&hyperheuristic_start, 0);
+
         HyperheuristicChoice choice;
         status = select_hyperheuristic(
             &factory,
@@ -422,13 +434,17 @@ int solve_qubo_impl(
             qubo_solution_uses_original_instance = false;
         }
         selected = "HH_" + choice.code;
+        hyperheuristic_runtime_seconds =
+            elapsed_seconds(hyperheuristic_start);
     }
 
     if (heuristic == NULL) {
         return MQLIB_STATUS_INTERNAL_ERROR;
     }
 
-    result->runtime_seconds = heuristic->Runtime();
+    result->runtime_seconds = hyperheuristic_runtime_seconds >= 0.0 ?
+        hyperheuristic_runtime_seconds :
+        heuristic->Runtime();
 
     std::vector<int> assignments;
     if (qubo_heuristic.get() != NULL) {

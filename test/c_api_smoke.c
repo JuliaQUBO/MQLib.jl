@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "mqlib_c_api.h"
 
@@ -37,7 +38,12 @@ static void init_result(MQLibCQUBOResult *result, int32_t *solution, char *selec
     result->history_length = 0;
 }
 
-static int run_success_case(const char *heuristic, const char *hhdata_dir, const char *expected_prefix) {
+static int run_success_case(
+    const char *heuristic,
+    const char *hhdata_dir,
+    const char *expected_prefix,
+    int require_full_elapsed_runtime
+) {
     MQLibCQUBOInput input;
     MQLibCQUBOResult result;
     int32_t solution[3] = {0, 0, 0};
@@ -46,7 +52,9 @@ static int run_success_case(const char *heuristic, const char *hhdata_dir, const
     init_input(&input, heuristic, hhdata_dir);
     init_result(&result, solution, selected_heuristic);
 
+    const clock_t start = clock();
     const int status = mqlib_solve_qubo(&input, &result);
+    const clock_t end = clock();
     if (status != MQLIB_STATUS_OK) {
         fprintf(stderr, "expected success, got %s\n", mqlib_c_status_message(status));
         return 1;
@@ -58,6 +66,25 @@ static int run_success_case(const char *heuristic, const char *hhdata_dir, const
     if (result.solution_length != 3) {
         fprintf(stderr, "unexpected solution length: %d\n", result.solution_length);
         return 1;
+    }
+    if (result.runtime_seconds <= 0.0) {
+        fprintf(stderr, "expected positive runtime, got %.15g\n", result.runtime_seconds);
+        return 1;
+    }
+    if (require_full_elapsed_runtime &&
+        start != (clock_t)-1 &&
+        end != (clock_t)-1) {
+        const double elapsed =
+            ((double)(end - start)) / ((double)CLOCKS_PER_SEC);
+        if (result.runtime_seconds + 0.02 < elapsed) {
+            fprintf(
+                stderr,
+                "runtime %.15g omits elapsed hyperheuristic work %.15g\n",
+                result.runtime_seconds,
+                elapsed
+            );
+            return 1;
+        }
     }
     return 0;
 }
@@ -85,13 +112,13 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    if (run_success_case("ALKHAMIS1998", NULL, "ALKHAMIS1998") != 0) {
+    if (run_success_case("ALKHAMIS1998", NULL, "ALKHAMIS1998", 0) != 0) {
         return 1;
     }
     if (run_missing_hhdata_case() != 0) {
         return 1;
     }
-    if (run_success_case(NULL, argv[1], "HH_") != 0) {
+    if (run_success_case(NULL, argv[1], "HH_", 1) != 0) {
         return 1;
     }
 
