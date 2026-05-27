@@ -26,6 +26,11 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Native C ABI smoke test
+        if: runner.os == 'Linux'
+        env:
+          MQLIB_UPSTREAM_REF: 585496274af5abb0849d0d47e135496b4688680b
+        run: bash test/native_c_api_smoke.sh
       - uses: julia-actions/julia-runtest@v1
       # - uses: julia-actions/julia-processcoverage@v1
       # - uses: codecov/codecov-action@v2
