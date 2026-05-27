@@ -1,4 +1,5 @@
 import Test
+import TOML
 import MQLib
 import MQLib: MOI, QUBODrivers
 
@@ -11,6 +12,20 @@ function first_available_tool(names::Vector{String})
     end
 
     return nothing
+end
+
+Test.@testset "Compatibility metadata" begin
+    root = dirname(dirname(@__FILE__))
+    project = TOML.parsefile(joinpath(root, "Project.toml"))
+    compat = project["compat"]
+
+    Test.@test compat["julia"] == "1.10"
+    Test.@test compat["QUBODrivers"] == "0.4"
+    Test.@test compat["QUBOTools"] == "0.12"
+
+    ci = read(joinpath(root, ".github", "workflows", "ci.yml"), String)
+    Test.@test occursin(r"version:\s*'1\.10'", ci)
+    Test.@test occursin(r"version:\s*'1'", ci)
 end
 
 Test.@testset "QUBODrivers" begin
