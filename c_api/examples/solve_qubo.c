@@ -75,5 +75,5 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    return solve_with_heuristic(NULL, argv[1], 0.75);
+    return solve_with_heuristic(NULL, argv[1], 1.50);
 }

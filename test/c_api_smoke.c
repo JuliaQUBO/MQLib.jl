@@ -125,7 +125,7 @@ static int run_hyperheuristic_budget_case(const char *hhdata_dir) {
     char selected_heuristic[64] = {0};
     double history_values[32] = {0.0};
     double history_times[32] = {0.0};
-    const double runtime_limit_seconds = 0.75;
+    const double runtime_limit_seconds = 1.50;
 
     init_input(&input, NULL, hhdata_dir, runtime_limit_seconds);
     init_result(
