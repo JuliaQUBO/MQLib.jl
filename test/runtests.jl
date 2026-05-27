@@ -44,6 +44,9 @@ Test.@testset "C ABI contract" begin
     Test.@test isfile(header)
     Test.@test isfile(source)
 
+    recipe = joinpath(root, "jll", "build_tarballs.jl")
+    Test.@test isfile(recipe)
+
     header_text = read(header, String)
     for symbol in (
         "MQLIB_C_ABI_VERSION",
@@ -78,6 +81,18 @@ Test.@testset "C ABI contract" begin
             )
             Test.@test success(`$cc -std=c99 -I$include_dir -fsyntax-only $check`)
         end
+    end
+
+    recipe_text = read(recipe, String)
+    for snippet in (
+        "ExecutableProduct(\"MQLib\", :MQLib)",
+        "LibraryProduct(\"libmqlib_c_api\", :libmqlib_c_api)",
+        "c_api/include/mqlib_c_api.h",
+        "c_api/src/mqlib_c_api.cpp",
+        "! -name main.cpp",
+        "-DMQLIB_C_BUILD_SHARED",
+    )
+        Test.@test occursin(snippet, recipe_text)
     end
 
     upstream_dir = get(ENV, "MQLIB_UPSTREAM_DIR", "")
