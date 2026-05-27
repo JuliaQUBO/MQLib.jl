@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 - 2026-05-27
 
 - Raised the Julia compatibility floor from 1.9 to 1.10.
 - Updated QUBODrivers compatibility to 0.4 and QUBOTools compatibility to 0.12.
 - Updated CI coverage to test Julia 1.10 and latest stable Julia.
+- Added a documented C ABI wrapper for solving QUBO instances through MQLib without invoking the command-line executable.
+- Added native C ABI smoke tests and contract checks for the exported C API.
+- Added a BinaryBuilder recipe sketch for building `MQLib_jll` with both the existing executable product and a future `libmqlib_c_api` shared library product.
