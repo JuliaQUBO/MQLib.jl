@@ -4,7 +4,12 @@
 
 #include "mqlib_c_api.h"
 
-static void init_input(MQLibCQUBOInput *input, const char *heuristic, const char *hhdata_dir) {
+static void init_input(
+    MQLibCQUBOInput *input,
+    const char *heuristic,
+    const char *hhdata_dir,
+    double runtime_limit_seconds
+) {
     static const double linear[3] = {5.0, 3.0, 1.0};
     static const int32_t quadratic_i[2] = {0, 1};
     static const int32_t quadratic_j[2] = {1, 2};
@@ -19,12 +24,19 @@ static void init_input(MQLibCQUBOInput *input, const char *heuristic, const char
     input->quadratic_value = quadratic_value;
     input->index_base = MQLIB_C_INDEX_BASE_ZERO;
     input->heuristic = heuristic;
-    input->runtime_limit_seconds = 0.01;
+    input->runtime_limit_seconds = runtime_limit_seconds;
     input->random_seed = 1234;
     input->hyperheuristic_data_dir = hhdata_dir;
 }
 
-static void init_result(MQLibCQUBOResult *result, int32_t *solution, char *selected_heuristic) {
+static void init_result(
+    MQLibCQUBOResult *result,
+    int32_t *solution,
+    char *selected_heuristic,
+    double *history_values,
+    double *history_times,
+    int32_t history_capacity
+) {
     result->abi_version = MQLIB_C_ABI_VERSION;
     result->objective_value = 0.0;
     result->runtime_seconds = 0.0;
@@ -32,9 +44,9 @@ static void init_result(MQLibCQUBOResult *result, int32_t *solution, char *selec
     result->solution_length = 3;
     result->selected_heuristic = selected_heuristic;
     result->selected_heuristic_length = 64;
-    result->history_objective_values = NULL;
-    result->history_times_seconds = NULL;
-    result->history_capacity = 0;
+    result->history_objective_values = history_values;
+    result->history_times_seconds = history_times;
+    result->history_capacity = history_capacity;
     result->history_length = 0;
 }
 
@@ -49,8 +61,8 @@ static int run_success_case(
     int32_t solution[3] = {0, 0, 0};
     char selected_heuristic[64] = {0};
 
-    init_input(&input, heuristic, hhdata_dir);
-    init_result(&result, solution, selected_heuristic);
+    init_input(&input, heuristic, hhdata_dir, 0.01);
+    init_result(&result, solution, selected_heuristic, NULL, NULL, 0);
 
     const clock_t start = clock();
     const int status = mqlib_solve_qubo(&input, &result);
@@ -95,14 +107,72 @@ static int run_missing_hhdata_case(void) {
     int32_t solution[3] = {0, 0, 0};
     char selected_heuristic[64] = {0};
 
-    init_input(&input, NULL, NULL);
-    init_result(&result, solution, selected_heuristic);
+    init_input(&input, NULL, NULL, 0.01);
+    init_result(&result, solution, selected_heuristic, NULL, NULL, 0);
 
     const int status = mqlib_solve_qubo(&input, &result);
     if (status != MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND) {
         fprintf(stderr, "expected missing hyperheuristic data, got %s\n", mqlib_c_status_message(status));
         return 1;
     }
+    return 0;
+}
+
+static int run_hyperheuristic_budget_case(const char *hhdata_dir) {
+    MQLibCQUBOInput input;
+    MQLibCQUBOResult result;
+    int32_t solution[3] = {0, 0, 0};
+    char selected_heuristic[64] = {0};
+    double history_values[32] = {0.0};
+    double history_times[32] = {0.0};
+    const double runtime_limit_seconds = 0.75;
+
+    init_input(&input, NULL, hhdata_dir, runtime_limit_seconds);
+    init_result(
+        &result,
+        solution,
+        selected_heuristic,
+        history_values,
+        history_times,
+        32
+    );
+
+    const int status = mqlib_solve_qubo(&input, &result);
+    if (status != MQLIB_STATUS_OK) {
+        fprintf(stderr, "expected success, got %s\n", mqlib_c_status_message(status));
+        return 1;
+    }
+    if (result.runtime_seconds > runtime_limit_seconds + 0.30) {
+        fprintf(
+            stderr,
+            "hyperheuristic runtime %.15g exceeded budget %.15g\n",
+            result.runtime_seconds,
+            runtime_limit_seconds
+        );
+        return 1;
+    }
+    if (result.history_length < 2) {
+        fprintf(stderr, "expected hyperheuristic history to include an improvement\n");
+        return 1;
+    }
+    if (history_times[1] < 0.10) {
+        fprintf(
+            stderr,
+            "history time %.15g does not include hyperheuristic selection time\n",
+            history_times[1]
+        );
+        return 1;
+    }
+    if (history_times[1] > result.runtime_seconds + 0.02) {
+        fprintf(
+            stderr,
+            "history time %.15g exceeded reported runtime %.15g\n",
+            history_times[1],
+            result.runtime_seconds
+        );
+        return 1;
+    }
+    (void)history_values;
     return 0;
 }
 
@@ -119,6 +189,9 @@ int main(int argc, char **argv) {
         return 1;
     }
     if (run_success_case(NULL, argv[1], "HH_", 1) != 0) {
+        return 1;
+    }
+    if (run_hyperheuristic_budget_case(argv[1]) != 0) {
         return 1;
     }
 

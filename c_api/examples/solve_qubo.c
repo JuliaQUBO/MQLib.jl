@@ -2,7 +2,11 @@
 
 #include "mqlib_c_api.h"
 
-static int solve_with_heuristic(const char *heuristic, const char *hhdata_dir) {
+static int solve_with_heuristic(
+    const char *heuristic,
+    const char *hhdata_dir,
+    double runtime_limit_seconds
+) {
     const double linear[3] = {5.0, 3.0, 1.0};
     const int32_t quadratic_i[2] = {0, 1};
     const int32_t quadratic_j[2] = {1, 2};
@@ -23,7 +27,7 @@ static int solve_with_heuristic(const char *heuristic, const char *hhdata_dir) {
         quadratic_value,
         MQLIB_C_INDEX_BASE_ZERO,
         heuristic,
-        0.01,
+        runtime_limit_seconds,
         1234,
         hhdata_dir
     };
@@ -61,7 +65,7 @@ static int solve_with_heuristic(const char *heuristic, const char *hhdata_dir) {
 }
 
 int main(int argc, char **argv) {
-    int status = solve_with_heuristic("ALKHAMIS1998", NULL);
+    int status = solve_with_heuristic("ALKHAMIS1998", NULL, 0.01);
     if (status != MQLIB_STATUS_OK) {
         return status;
     }
@@ -71,5 +75,5 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    return solve_with_heuristic(NULL, argv[1]);
+    return solve_with_heuristic(NULL, argv[1], 0.75);
 }

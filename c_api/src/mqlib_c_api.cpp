@@ -108,6 +108,11 @@ double elapsed_seconds(const struct timeval &start) {
         0.000001 * (end.tv_usec - start.tv_usec);
 }
 
+double remaining_runtime_limit(double runtime_limit_seconds, double elapsed) {
+    const double remaining = runtime_limit_seconds - elapsed;
+    return remaining > 0.0 ? remaining : 0.0;
+}
+
 void update_hyperheuristic_choice(
     const std::string &code,
     HyperheuristicProblem problem,
@@ -367,6 +372,7 @@ int solve_qubo_impl(
     std::string selected;
     const bool validation = false;
     bool qubo_solution_uses_original_instance = true;
+    double hyperheuristic_selection_seconds = 0.0;
     double hyperheuristic_runtime_seconds = -1.0;
 
     if (has_text(input->heuristic)) {
@@ -411,12 +417,19 @@ int solve_qubo_impl(
             return status;
         }
 
+        hyperheuristic_selection_seconds =
+            elapsed_seconds(hyperheuristic_start);
+        const double selected_runtime_limit = remaining_runtime_limit(
+            input->runtime_limit_seconds,
+            hyperheuristic_selection_seconds
+        );
+
         std::srand(static_cast<unsigned int>(input->random_seed));
         if (choice.problem == HYPERHEURISTIC_MAXCUT) {
             maxcut_heuristic.reset(factory.RunMaxCutHeuristic(
                 choice.code,
                 *mi,
-                input->runtime_limit_seconds,
+                selected_runtime_limit,
                 validation,
                 NULL
             ));
@@ -426,7 +439,7 @@ int solve_qubo_impl(
             qubo_heuristic.reset(factory.RunQUBOHeuristic(
                 choice.code,
                 *hyperheuristic_qi,
-                input->runtime_limit_seconds,
+                selected_runtime_limit,
                 validation,
                 NULL
             ));
@@ -478,6 +491,16 @@ int solve_qubo_impl(
     std::vector<std::pair<double, double> > history;
     if (!parse_history(heuristic->History(), &history)) {
         return MQLIB_STATUS_INTERNAL_ERROR;
+    }
+    if (hyperheuristic_runtime_seconds >= 0.0) {
+        for (std::vector<std::pair<double, double> >::iterator iter =
+                 history.begin();
+             iter != history.end();
+             ++iter) {
+            if (iter != history.begin()) {
+                iter->second += hyperheuristic_selection_seconds;
+            }
+        }
     }
 
     const int selected_status =
