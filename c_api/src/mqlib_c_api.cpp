@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -13,16 +14,35 @@
 #include <vector>
 
 #include "heuristics/heuristic_factory.h"
-#include "heuristics/maxcut/hyperheuristic.h"
+#include "heuristics/maxcut/max_cut_simple_solution.h"
 #include "heuristics/qubo/qubo_simple_solution.h"
+#include "metrics/max_cut_metrics.h"
 #include "problem/max_cut_instance.h"
 #include "problem/qubo_instance.h"
+#include "util/random.h"
+#include "util/randomForest.h"
 
 namespace {
 
 bool has_text(const char *value) {
     return value != NULL && value[0] != '\0';
 }
+
+enum HyperheuristicProblem {
+    HYPERHEURISTIC_MAXCUT,
+    HYPERHEURISTIC_QUBO
+};
+
+struct HyperheuristicChoice {
+    bool found;
+    HyperheuristicProblem problem;
+    std::string code;
+
+    HyperheuristicChoice() :
+        found(false),
+        problem(HYPERHEURISTIC_MAXCUT),
+        code() {}
+};
 
 bool parse_double_token(const std::string &text, double *value) {
     char *end = NULL;
@@ -68,6 +88,101 @@ bool parse_history(
     }
 
     return true;
+}
+
+std::string model_path(const std::string &data_dir, const std::string &code) {
+    const std::string root = data_dir.empty() ? std::string("hhdata") : data_dir;
+    return root + "/" + code + ".rf";
+}
+
+bool file_exists(const std::string &path) {
+    std::ifstream file(path.c_str());
+    return file.good();
+}
+
+void update_hyperheuristic_choice(
+    const std::string &code,
+    HyperheuristicProblem problem,
+    const std::vector<double> &metrics,
+    const std::string &data_dir,
+    double *best_probability,
+    int *num_best,
+    HyperheuristicChoice *choice
+) {
+    const std::string path = model_path(data_dir, code);
+    if (!file_exists(path)) {
+        return;
+    }
+
+    RandomForest random_forest(path);
+    const double probability = random_forest.Predict(metrics);
+    if (probability > *best_probability) {
+        *best_probability = probability;
+        *num_best = 1;
+        choice->found = true;
+        choice->problem = problem;
+        choice->code = code;
+    } else if (probability == *best_probability &&
+               Random::RandInt(0, *num_best) == *num_best) {
+        ++(*num_best);
+        choice->found = true;
+        choice->problem = problem;
+        choice->code = code;
+    }
+}
+
+int select_hyperheuristic(
+    HeuristicFactory *factory,
+    const MaxCutInstance &mi,
+    const char *hyperheuristic_data_dir,
+    HyperheuristicChoice *choice
+) {
+    GraphMetrics graph_metrics(mi);
+    std::vector<double> metrics;
+    graph_metrics.AllMetrics(&metrics, NULL);
+
+    const std::string data_dir = has_text(hyperheuristic_data_dir) ?
+        std::string(hyperheuristic_data_dir) :
+        std::string();
+    double best_probability = -1.0;
+    int num_best = 1;
+
+    std::vector<std::string> codes;
+    factory->MaxCutHeuristicCodes(&codes);
+    for (std::vector<std::string>::const_iterator code = codes.begin();
+         code != codes.end();
+         ++code) {
+        update_hyperheuristic_choice(
+            *code,
+            HYPERHEURISTIC_MAXCUT,
+            metrics,
+            data_dir,
+            &best_probability,
+            &num_best,
+            choice
+        );
+    }
+
+    factory->QUBOHeuristicCodes(&codes);
+    for (std::vector<std::string>::const_iterator code = codes.begin();
+         code != codes.end();
+         ++code) {
+        update_hyperheuristic_choice(
+            *code,
+            HYPERHEURISTIC_QUBO,
+            metrics,
+            data_dir,
+            &best_probability,
+            &num_best,
+            choice
+        );
+    }
+
+    if (!choice->found) {
+        return MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND;
+    }
+
+    return MQLIB_STATUS_OK;
 }
 
 int validate_buffers(
@@ -237,11 +352,13 @@ int solve_qubo_impl(
     QUBOInstance qi(quadratic, linear, static_cast<int>(input->dimension));
     HeuristicFactory factory;
     std::unique_ptr<MaxCutInstance> mi;
+    std::unique_ptr<QUBOInstance> hyperheuristic_qi;
     std::unique_ptr<MaxCutHeuristic> maxcut_heuristic;
     std::unique_ptr<QUBOHeuristic> qubo_heuristic;
     Heuristic *heuristic = NULL;
     std::string selected;
     const bool validation = false;
+    bool qubo_solution_uses_original_instance = true;
 
     if (has_text(input->heuristic)) {
         const std::string requested(input->heuristic);
@@ -271,17 +388,40 @@ int solve_qubo_impl(
         }
     } else {
         mi.reset(new MaxCutInstance(qi));
-        std::string hyperheuristic_choice;
-        maxcut_heuristic.reset(new MaxCutHyperheuristic(
+        HyperheuristicChoice choice;
+        status = select_hyperheuristic(
+            &factory,
             *mi,
-            input->runtime_limit_seconds,
-            validation,
-            NULL,
-            static_cast<int>(input->random_seed),
-            &hyperheuristic_choice
-        ));
-        heuristic = maxcut_heuristic.get();
-        selected = "HH_" + hyperheuristic_choice;
+            input->hyperheuristic_data_dir,
+            &choice
+        );
+        if (status != MQLIB_STATUS_OK) {
+            return status;
+        }
+
+        std::srand(static_cast<unsigned int>(input->random_seed));
+        if (choice.problem == HYPERHEURISTIC_MAXCUT) {
+            maxcut_heuristic.reset(factory.RunMaxCutHeuristic(
+                choice.code,
+                *mi,
+                input->runtime_limit_seconds,
+                validation,
+                NULL
+            ));
+            heuristic = maxcut_heuristic.get();
+        } else {
+            hyperheuristic_qi.reset(new QUBOInstance(*mi));
+            qubo_heuristic.reset(factory.RunQUBOHeuristic(
+                choice.code,
+                *hyperheuristic_qi,
+                input->runtime_limit_seconds,
+                validation,
+                NULL
+            ));
+            heuristic = qubo_heuristic.get();
+            qubo_solution_uses_original_instance = false;
+        }
+        selected = "HH_" + choice.code;
     }
 
     if (heuristic == NULL) {
@@ -293,8 +433,15 @@ int solve_qubo_impl(
     std::vector<int> assignments;
     if (qubo_heuristic.get() != NULL) {
         const QUBOSimpleSolution &solution = qubo_heuristic->get_best_solution();
-        assignments = solution.get_assignments();
-        result->objective_value = solution.get_weight();
+        if (qubo_solution_uses_original_instance) {
+            assignments = solution.get_assignments();
+            result->objective_value = solution.get_weight();
+        } else {
+            MaxCutSimpleSolution maxcut_solution(solution, *mi, NULL);
+            QUBOSimpleSolution qubo_solution(maxcut_solution, qi, NULL);
+            assignments = qubo_solution.get_assignments();
+            result->objective_value = qubo_solution.get_weight();
+        }
     } else {
         QUBOSimpleSolution solution(
             maxcut_heuristic->get_best_solution(),
@@ -352,6 +499,8 @@ extern "C" MQLIB_C_API const char *mqlib_c_status_message(int status) {
         return "allocation failed";
     case MQLIB_STATUS_INTERNAL_ERROR:
         return "internal error";
+    case MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND:
+        return "hyperheuristic data not found";
     default:
         return "unknown status";
     }

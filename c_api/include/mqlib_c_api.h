@@ -27,7 +27,8 @@ typedef enum MQLibCStatus {
     MQLIB_STATUS_INVALID_HEURISTIC = 3,
     MQLIB_STATUS_BUFFER_TOO_SMALL = 4,
     MQLIB_STATUS_ALLOCATION_FAILED = 5,
-    MQLIB_STATUS_INTERNAL_ERROR = 6
+    MQLIB_STATUS_INTERNAL_ERROR = 6,
+    MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND = 7
 } MQLibCStatus;
 
 typedef struct MQLibCQUBOInput {
@@ -50,6 +51,14 @@ typedef struct MQLibCQUBOInput {
 
     double runtime_limit_seconds;
     int32_t random_seed;
+
+    /*
+     * Optional path to the directory containing the hyperheuristic .rf model
+     * files. Used only when heuristic is NULL or empty. If this is NULL or
+     * empty, mqlib_solve_qubo looks for ./hhdata relative to the caller's
+     * current working directory.
+     */
+    const char *hyperheuristic_data_dir;
 } MQLibCQUBOInput;
 
 typedef struct MQLibCQUBOResult {

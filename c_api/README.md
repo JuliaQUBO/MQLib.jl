@@ -34,6 +34,10 @@ format.
 
 Set `heuristic` to a QUBO heuristic code such as `ALKHAMIS1998` to run that
 heuristic. Set it to `NULL` or an empty string to run the hyperheuristic path.
+For hyperheuristic runs, set `hyperheuristic_data_dir` to the directory
+containing MQLib's random-forest model files, usually the upstream `hhdata`
+directory. If no model files are found, `mqlib_solve_qubo` returns
+`MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND`.
 
 ## Build Sketch
 
@@ -54,4 +58,8 @@ upstream executable entry point (`src/main.cpp`) should not be part of the
 shared-library target.
 
 The small native example in `c_api/examples/solve_qubo.c` demonstrates both an
-explicit QUBO heuristic and the hyperheuristic call shape.
+explicit QUBO heuristic and the hyperheuristic call shape:
+
+```sh
+./solve_qubo /path/to/MQLib/hhdata
+```

@@ -36,6 +36,7 @@ Test.@testset "C ABI contract" begin
         "MQLibCQUBOResult",
         "mqlib_solve_qubo",
         "mqlib_c_status_message",
+        "MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND",
     )
         Test.@test occursin(symbol, header_text)
     end

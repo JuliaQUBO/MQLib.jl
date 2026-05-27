@@ -2,7 +2,7 @@
 
 #include "mqlib_c_api.h"
 
-static int solve_with_heuristic(const char *heuristic) {
+static int solve_with_heuristic(const char *heuristic, const char *hhdata_dir) {
     const double linear[3] = {5.0, 3.0, 1.0};
     const int32_t quadratic_i[2] = {0, 1};
     const int32_t quadratic_j[2] = {1, 2};
@@ -24,7 +24,8 @@ static int solve_with_heuristic(const char *heuristic) {
         MQLIB_C_INDEX_BASE_ZERO,
         heuristic,
         0.01,
-        1234
+        1234,
+        hhdata_dir
     };
 
     MQLibCQUBOResult result = {
@@ -59,11 +60,16 @@ static int solve_with_heuristic(const char *heuristic) {
     return MQLIB_STATUS_OK;
 }
 
-int main(void) {
-    int status = solve_with_heuristic("ALKHAMIS1998");
+int main(int argc, char **argv) {
+    int status = solve_with_heuristic("ALKHAMIS1998", NULL);
     if (status != MQLIB_STATUS_OK) {
         return status;
     }
 
-    return solve_with_heuristic(NULL);
+    if (argc < 2) {
+        fprintf(stderr, "Pass the path to MQLib's hhdata directory to run the hyperheuristic example.\n");
+        return 2;
+    }
+
+    return solve_with_heuristic(NULL, argv[1]);
 }
