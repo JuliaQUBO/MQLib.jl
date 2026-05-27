@@ -39,10 +39,26 @@ containing MQLib's random-forest model files, usually the upstream `hhdata`
 directory. If no model files are found, `mqlib_solve_qubo` returns
 `MQLIB_STATUS_HYPERHEURISTIC_DATA_NOT_FOUND`.
 
-## Build Sketch
+## BinaryBuilder Recipe
 
-The exact build recipe belongs in `MQLib_jll`, but a local syntax check against
-an upstream MQLib checkout looks like:
+The `MQLib_jll` build recipe in `jll/build_tarballs.jl` builds the existing
+`MQLib` executable product and a shared library product named
+`libmqlib_c_api`. The library compiles `c_api/src/mqlib_c_api.cpp` with the
+upstream MQLib implementation sources, excluding the upstream executable entry
+point (`src/main.cpp`), and installs this header as `mqlib_c_api.h`.
+
+Downstream Julia code should call the library product exported by `MQLib_jll`,
+for example:
+
+```julia
+ccall((:mqlib_c_abi_version, libmqlib_c_api), Cint, ())
+```
+
+The public ABI is versioned by `MQLIB_C_ABI_VERSION`. Any incompatible change
+to the structs, status codes, or exported functions must bump that value and be
+released through a new `MQLib_jll` build.
+
+A local syntax check against an upstream MQLib checkout looks like:
 
 ```sh
 c++ -std=c++11 \
@@ -51,11 +67,6 @@ c++ -std=c++11 \
   -fsyntax-only \
   c_api/src/mqlib_c_api.cpp
 ```
-
-When building the shared library, compile `c_api/src/mqlib_c_api.cpp` together
-with the upstream MQLib implementation sources needed by the heuristics. The
-upstream executable entry point (`src/main.cpp`) should not be part of the
-shared-library target.
 
 The small native example in `c_api/examples/solve_qubo.c` demonstrates both an
 explicit QUBO heuristic and the hyperheuristic call shape:
