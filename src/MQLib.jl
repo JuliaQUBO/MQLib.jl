@@ -236,9 +236,9 @@ function _sample_with_c_api(
             run_time_limit,
         )
 
-        λ = T(result.objective_value)
         ψ = Int.(result.solution)
-        push!(samples, QUBODrivers.Sample{T}(ψ, α * (λ + β)))
+        λ = T(QUBOTools.value(ψ, L, Q, α, β))
+        push!(samples, QUBODrivers.Sample{T}(ψ, λ))
 
         _print_iter(
             silent,

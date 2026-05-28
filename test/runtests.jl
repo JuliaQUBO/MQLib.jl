@@ -14,6 +14,95 @@ function first_available_tool(names::Vector{String})
     return nothing
 end
 
+function configure_public_c_api_smoke!(model)
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MQLib.Heuristic(), "ALKHAMIS1998")
+    MOI.set(model, MQLib.RandomSeed(), 1234)
+    MOI.set(model, MQLib.NumberOfReads(), 2)
+    MOI.set(model, MOI.TimeLimitSec(), 0.02)
+
+    return model
+end
+
+function test_public_c_api_bool_max_objectives()
+    T = Float64
+    n = 3
+    Q = T[-1 2 2; 2 -1 2; 2 2 -1]
+    model = MOI.instantiate(MQLib.Optimizer; with_bridge_type = T)
+    x, _ = MOI.add_constrained_variables(model, fill(MOI.ZeroOne(), n))
+
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{T}}(),
+        MOI.ScalarQuadraticFunction{T}(
+            [
+                MOI.ScalarQuadraticTerm{T}(Q[i, j], x[i], x[j])
+                for i = 1:n for j = 1:n if i != j
+            ],
+            [MOI.ScalarAffineTerm{T}(Q[i, i], x[i]) for i = 1:n],
+            T(3),
+        ),
+    )
+    configure_public_c_api_smoke!(model)
+
+    MOI.optimize!(model)
+
+    Test.@test MOI.get(model, MOI.ResultCount()) > 0
+    for result_index = 1:MOI.get(model, MOI.ResultCount())
+        xi = MOI.get.(model, MOI.VariablePrimal(result_index), x)
+        expected = sum(Q[i, j] * xi[i] * xi[j] for i = 1:n for j = 1:n) + T(3)
+        Test.@test MOI.get(model, MOI.ObjectiveValue(result_index)) ≈ expected
+    end
+
+    read_count_attr = QUBODrivers.QUBOTools_MOI.NumberOfReads
+    total_reads = sum(
+        MOI.get(model, read_count_attr(result_index))
+        for result_index = 1:MOI.get(model, MOI.ResultCount())
+    )
+    Test.@test total_reads == 2
+
+    return nothing
+end
+
+function test_public_c_api_spin_max_objectives()
+    T = Float64
+    n = 3
+    h = T[-1; -1; -1]
+    J = T[0 4 4; 0 0 4; 0 0 0]
+    model = MOI.instantiate(MQLib.Optimizer; with_bridge_type = T)
+    s, _ = MOI.add_constrained_variables(model, fill(QUBODrivers.Spin(), n))
+
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{T}}(),
+        MOI.ScalarQuadraticFunction{T}(
+            [
+                MOI.ScalarQuadraticTerm{T}(J[i, j], s[i], s[j])
+                for i = 1:n for j = 1:n
+            ],
+            [MOI.ScalarAffineTerm{T}(h[i], s[i]) for i = 1:n],
+            T(5),
+        ),
+    )
+    configure_public_c_api_smoke!(model)
+
+    MOI.optimize!(model)
+
+    Test.@test MOI.get(model, MOI.ResultCount()) > 0
+    for result_index = 1:MOI.get(model, MOI.ResultCount())
+        si = MOI.get.(model, MOI.VariablePrimal(result_index), s)
+        expected =
+            sum(J[i, j] * si[i] * si[j] for i = 1:n for j = 1:n) +
+            sum(h[i] * si[i] for i = 1:n) +
+            T(5)
+        Test.@test MOI.get(model, MOI.ObjectiveValue(result_index)) ≈ expected
+    end
+
+    return nothing
+end
+
 Test.@testset "Compatibility metadata" begin
     root = dirname(dirname(@__FILE__))
     project = TOML.parsefile(joinpath(root, "Project.toml"))
@@ -67,6 +156,9 @@ Test.@testset "Julia C ABI bridge" begin
         Test.@test result.solution == Int32[1, 0, 1]
         Test.@test result.selected_heuristic == "ALKHAMIS1998"
         Test.@test result.runtime_seconds > 0.0
+
+        test_public_c_api_bool_max_objectives()
+        test_public_c_api_spin_max_objectives()
     else
         @info "Skipping direct Julia C ABI solve because MQLib_jll has no libmqlib_c_api product"
     end
