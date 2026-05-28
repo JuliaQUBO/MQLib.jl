@@ -20,7 +20,7 @@ Test.@testset "Compatibility metadata" begin
     compat = project["compat"]
 
     Test.@test compat["julia"] == "1.10"
-    Test.@test compat["QUBODrivers"] == "0.4"
+    Test.@test compat["QUBODrivers"] == "0.4, 0.5"
     Test.@test compat["QUBOTools"] == "0.12"
 
     ci = read(joinpath(root, ".github", "workflows", "ci.yml"), String)
