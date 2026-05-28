@@ -4,6 +4,9 @@
 
 [MQLib](https://github.com/MQLib/MQLib) wrapper for JuMP.
 
+MQLib.jl uses the shared-library C ABI when `MQLib_jll` provides
+`libmqlib_c_api`. Older JLL builds continue to use the executable-backed path.
+
 ## Installation
 ```julia
 julia> import Pkg

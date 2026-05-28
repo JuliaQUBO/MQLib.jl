@@ -35,6 +35,43 @@ Test.@testset "QUBODrivers" begin
     end
 end
 
+Test.@testset "Julia C ABI bridge" begin
+    linear_terms = Dict(1 => 5.0, 2 => 3.0, 3 => 1.0)
+    quadratic_terms = Dict((1, 2) => -6.0, (2, 3) => -1.0)
+    linear, quadratic_i, quadratic_j, quadratic_value =
+        MQLib._mqlib_problem_data(3, linear_terms, quadratic_terms)
+
+    Test.@test linear == [5.0, 3.0, 1.0]
+    Test.@test quadratic_i == Int32[1, 2]
+    Test.@test quadratic_j == Int32[2, 3]
+    Test.@test quadratic_value == [-6.0, -1.0]
+    Test.@test MQLib._mqlib_run_seed(65_536) == 0
+    Test.@test endswith(
+        MQLib._mqlib_hyperheuristic_data_dir(),
+        joinpath("share", "mqlib", "hhdata"),
+    )
+
+    if MQLib._mqlib_has_c_api()
+        result = MQLib._mqlib_solve_qubo(
+            3,
+            linear,
+            quadratic_i,
+            quadratic_j,
+            quadratic_value;
+            heuristic = "ALKHAMIS1998",
+            random_seed = 1234,
+            run_time_limit = 0.01,
+        )
+
+        Test.@test result.objective_value == 6.0
+        Test.@test result.solution == Int32[1, 0, 1]
+        Test.@test result.selected_heuristic == "ALKHAMIS1998"
+        Test.@test result.runtime_seconds > 0.0
+    else
+        @info "Skipping direct Julia C ABI solve because MQLib_jll has no libmqlib_c_api product"
+    end
+end
+
 Test.@testset "C ABI contract" begin
     root = dirname(dirname(@__FILE__))
     include_dir = joinpath(root, "c_api", "include")
@@ -85,15 +122,20 @@ Test.@testset "C ABI contract" begin
 
     recipe_text = read(recipe, String)
     for snippet in (
+        "version = v\"0.1.2\"",
         "ExecutableProduct(\"MQLib\", :MQLib)",
         "LibraryProduct(\"libmqlib_c_api\", :libmqlib_c_api)",
         "c_api/include/mqlib_c_api.h",
         "c_api/src/mqlib_c_api.cpp",
+        "mkdir -p \"\${bindir}\" \"\${libdir}\" \"\${includedir}\" \"\${datadir}/mqlib/hhdata\"",
+        "install -vm 0644 hhdata/*.rf \"\${datadir}/mqlib/hhdata/\"",
         "! -name main.cpp",
+        "MQLIB_LIBRARY_SOURCES=\"\$(find src -name '*.cpp' ! -name main.cpp | sort)\"",
         "-DMQLIB_C_BUILD_SHARED",
     )
         Test.@test occursin(snippet, recipe_text)
     end
+    Test.@test !occursin("mapfile", recipe_text)
 
     upstream_dir = get(ENV, "MQLIB_UPSTREAM_DIR", "")
     cxx = first_available_tool(["c++", "g++", "clang++"])
