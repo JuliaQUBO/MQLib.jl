@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Root Julia package dependencies use the public General registry. CI for
+  # Dependabot PRs only needs the default GITHUB_TOKEN, and no PAT is required
+  # because this config does not trigger cross-repository workflows.
+  - package-ecosystem: "julia"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      root-julia-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
