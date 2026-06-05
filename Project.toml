@@ -11,7 +11,7 @@ QUBODrivers = "a3f166f7-2cd3-47b6-9e1e-6fbfe0449eb0"
 QUBOTools = "60eb5b62-0a39-4ddc-84c5-97d2adff9319"
 
 [compat]
-MQLib_jll        = "0.1"
+MQLib_jll        = "0.1.2"
 MathOptInterface = "1"
 Printf           = "1"
 QUBOTools        = "0.12"

@@ -109,6 +109,7 @@ Test.@testset "Compatibility metadata" begin
     compat = project["compat"]
 
     Test.@test compat["julia"] == "1.10"
+    Test.@test compat["MQLib_jll"] == "0.1.2"
     Test.@test compat["QUBODrivers"] == "0.4, 0.5"
     Test.@test compat["QUBOTools"] == "0.12"
 
@@ -140,28 +141,26 @@ Test.@testset "Julia C ABI bridge" begin
         joinpath("share", "mqlib", "hhdata"),
     )
 
-    if MQLib._mqlib_has_c_api()
-        result = MQLib._mqlib_solve_qubo(
-            3,
-            linear,
-            quadratic_i,
-            quadratic_j,
-            quadratic_value;
-            heuristic = "ALKHAMIS1998",
-            random_seed = 1234,
-            run_time_limit = 0.01,
-        )
+    Test.@test MQLib._mqlib_has_c_api()
 
-        Test.@test result.objective_value == 6.0
-        Test.@test result.solution == Int32[1, 0, 1]
-        Test.@test result.selected_heuristic == "ALKHAMIS1998"
-        Test.@test result.runtime_seconds > 0.0
+    result = MQLib._mqlib_solve_qubo(
+        3,
+        linear,
+        quadratic_i,
+        quadratic_j,
+        quadratic_value;
+        heuristic = "ALKHAMIS1998",
+        random_seed = 1234,
+        run_time_limit = 0.01,
+    )
 
-        test_public_c_api_bool_max_objectives()
-        test_public_c_api_spin_max_objectives()
-    else
-        @info "Skipping direct Julia C ABI solve because MQLib_jll has no libmqlib_c_api product"
-    end
+    Test.@test result.objective_value == 6.0
+    Test.@test result.solution == Int32[1, 0, 1]
+    Test.@test result.selected_heuristic == "ALKHAMIS1998"
+    Test.@test result.runtime_seconds > 0.0
+
+    test_public_c_api_bool_max_objectives()
+    test_public_c_api_spin_max_objectives()
 end
 
 Test.@testset "C ABI contract" begin
