@@ -24,6 +24,55 @@ function configure_public_c_api_smoke!(model)
     return model
 end
 
+function configure_public_default_hyperheuristic_smoke!(model)
+    MOI.set(model, MOI.Silent(), true)
+    MOI.set(model, MQLib.RandomSeed(), 1234)
+    MOI.set(model, MQLib.NumberOfReads(), 1)
+    MOI.set(model, MOI.TimeLimitSec(), 0.02)
+
+    return model
+end
+
+function test_public_default_hyperheuristic_succeeds()
+    T = Float64
+    n = 3
+    model = MOI.instantiate(MQLib.Optimizer; with_bridge_type = T)
+    x, _ = MOI.add_constrained_variables(model, fill(MOI.ZeroOne(), n))
+
+    MOI.set(model, MOI.ObjectiveSense(), MOI.MAX_SENSE)
+    MOI.set(
+        model,
+        MOI.ObjectiveFunction{MOI.ScalarQuadraticFunction{T}}(),
+        MOI.ScalarQuadraticFunction{T}(
+            [
+                MOI.ScalarQuadraticTerm{T}(-6, x[1], x[2]),
+                MOI.ScalarQuadraticTerm{T}(-1, x[2], x[3]),
+            ],
+            [
+                MOI.ScalarAffineTerm{T}(5, x[1]),
+                MOI.ScalarAffineTerm{T}(3, x[2]),
+                MOI.ScalarAffineTerm{T}(1, x[3]),
+            ],
+            zero(T),
+        ),
+    )
+    configure_public_default_hyperheuristic_smoke!(model)
+
+    MOI.optimize!(model)
+
+    Test.@test MOI.get(model, MOI.ResultCount()) > 0
+    Test.@test length(MOI.get.(model, MOI.VariablePrimal(), x)) == n
+
+    read_count_attr = QUBODrivers.QUBOTools_MOI.NumberOfReads
+    total_reads = sum(
+        MOI.get(model, read_count_attr(result_index))
+        for result_index = 1:MOI.get(model, MOI.ResultCount())
+    )
+    Test.@test total_reads == 1
+
+    return nothing
+end
+
 function test_public_c_api_bool_max_objectives()
     T = Float64
     n = 3
@@ -142,6 +191,10 @@ Test.@testset "Julia C ABI bridge" begin
     )
 
     Test.@test MQLib._mqlib_has_c_api()
+    Test.@test MQLib._mqlib_can_use_c_api("ALKHAMIS1998")
+    if !MQLib._mqlib_has_hyperheuristic_data()
+        Test.@test !MQLib._mqlib_can_use_c_api(nothing)
+    end
 
     result = MQLib._mqlib_solve_qubo(
         3,
@@ -161,6 +214,7 @@ Test.@testset "Julia C ABI bridge" begin
 
     test_public_c_api_bool_max_objectives()
     test_public_c_api_spin_max_objectives()
+    test_public_default_hyperheuristic_succeeds()
 end
 
 Test.@testset "C ABI contract" begin

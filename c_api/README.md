@@ -7,7 +7,8 @@ The files here are intended to be compiled with the upstream MQLib C++ sources
 and packaged as a shared library by `MQLib_jll`. The Julia wrapper uses this
 ABI through the `libmqlib_c_api` product exported by `MQLib_jll` v0.1.2 and
 newer. The executable-backed path remains as a defensive fallback if the library
-product is unavailable.
+product is unavailable, or if a default hyperheuristic solve needs model files
+that are not packaged in the JLL.
 
 ## API
 

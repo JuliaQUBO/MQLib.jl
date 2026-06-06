@@ -5,6 +5,7 @@
 - Added a Julia `ccall` solve path that uses `MQLib_jll.libmqlib_c_api`.
 - Required `MQLib_jll` 0.1.2 or newer so the shared-library product is available from the published JLL.
 - Kept the existing executable-backed solve path as a defensive fallback if the C ABI library is unavailable.
+- Used the executable fallback for default hyperheuristic solves when the JLL artifact does not include hyperheuristic model files.
 - Updated the BinaryBuilder recipe sketch to install MQLib hyperheuristic model files under `share/mqlib/hhdata`.
 
 ## v0.5.0 - 2026-05-27

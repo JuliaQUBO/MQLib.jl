@@ -101,7 +101,7 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
         ),
     )
 
-    samples, effective_time = if _mqlib_has_c_api()
+    samples, effective_time = if _mqlib_can_use_c_api(heuristic)
         _sample_with_c_api(
             T,
             n,
@@ -254,6 +254,11 @@ function _sample_with_c_api(
     return samples, t
 end
 
+function _mqlib_can_use_c_api(heuristic::Union{String,Nothing})
+    return _mqlib_has_c_api() &&
+           (!isnothing(heuristic) || _mqlib_has_hyperheuristic_data())
+end
+
 function _mqlib_has_c_api()
     return isdefined(MQLib_jll, :libmqlib_c_api)
 end
@@ -264,6 +269,11 @@ end
 
 function _mqlib_hyperheuristic_data_dir()
     return joinpath(MQLib_jll.artifact_dir, "share", "mqlib", "hhdata")
+end
+
+function _mqlib_has_hyperheuristic_data()
+    data_dir = _mqlib_hyperheuristic_data_dir()
+    return isdir(data_dir) && any(name -> endswith(name, ".rf"), readdir(data_dir))
 end
 
 function _mqlib_problem_data(n::Integer, L, Q)
