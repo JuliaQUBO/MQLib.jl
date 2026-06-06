@@ -9,6 +9,39 @@ import MathOptInterface as MOI
 
 const __VERSION__ = v"0.1.0"
 const _HEURISTICS = Dict{String,String}()
+const _MQLIB_C_ABI_VERSION = UInt32(1)
+const _MQLIB_C_INDEX_BASE_ONE = Int32(1)
+const _MQLIB_STATUS_OK = Cint(0)
+const _MQLIB_STATUS_BUFFER_TOO_SMALL = Cint(4)
+
+struct _MQLibCQUBOInput
+    abi_version::UInt32
+    dimension::Int32
+    linear::Ptr{Cdouble}
+    quadratic_count::Int64
+    quadratic_i::Ptr{Int32}
+    quadratic_j::Ptr{Int32}
+    quadratic_value::Ptr{Cdouble}
+    index_base::Int32
+    heuristic::Cstring
+    runtime_limit_seconds::Cdouble
+    random_seed::Int32
+    hyperheuristic_data_dir::Cstring
+end
+
+struct _MQLibCQUBOResult
+    abi_version::UInt32
+    objective_value::Cdouble
+    runtime_seconds::Cdouble
+    solution::Ptr{Int32}
+    solution_length::Int32
+    selected_heuristic::Cstring
+    selected_heuristic_length::Int32
+    history_objective_values::Ptr{Cdouble}
+    history_times_seconds::Ptr{Cdouble}
+    history_capacity::Int32
+    history_length::Int32
+end
 
 function __init__()
     let exe = MQLib_jll.MQLib()
@@ -35,16 +68,6 @@ end
 function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     n, L, Q, α, β = QUBOTools.qubo(sampler, :dict; sense = :max, domain = :bool)
 
-    V = Set{Int}(1:n)
-
-    model = QUBOTools.Model{Int,T,Int}(
-        V, L, Q;
-        scale  = α,
-        offset = β,
-        sense  = :max,
-        domain = :bool,
-    )
-
     num_reads      = MOI.get(sampler, MQLib.NumberOfReads())
     silent         = MOI.get(sampler, MOI.Silent())
     heuristic      = MOI.get(sampler, MQLib.Heuristic())
@@ -69,7 +92,6 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
         time_limit_sec / num_reads
     end
 
-    samples  = QUBODrivers.Sample{T,Int}[]
     metadata = Dict{String,Any}(
         "time"   => Dict{String,Any}(),
         "origin" => Dict{String,Any}(
@@ -79,7 +101,65 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
         ),
     )
 
-    mktempdir() do temp_path
+    samples, effective_time = if _mqlib_can_use_c_api(heuristic)
+        _sample_with_c_api(
+            T,
+            n,
+            L,
+            Q,
+            α,
+            β;
+            num_reads,
+            silent,
+            heuristic,
+            random_seed,
+            run_time_limit,
+        )
+    else
+        _sample_with_executable(
+            T,
+            n,
+            L,
+            Q,
+            α,
+            β;
+            num_reads,
+            silent,
+            heuristic,
+            random_seed,
+            run_time_limit,
+        )
+    end
+
+    metadata["time"]["effective"] = effective_time
+
+    return QUBOTools.SampleSet{T}(samples, metadata; sense = :max, domain = :bool)
+end
+
+function _sample_with_executable(
+    ::Type{T},
+    n::Integer,
+    L,
+    Q,
+    α,
+    β;
+    num_reads::Integer,
+    silent::Bool,
+    heuristic::Union{String,Nothing},
+    random_seed::Union{Integer,Nothing},
+    run_time_limit::Float64,
+) where {T}
+    V = Set{Int}(1:n)
+    model = QUBOTools.Model{Int,T,Int}(
+        V, L, Q;
+        scale = α,
+        offset = β,
+        sense = :max,
+        domain = :bool,
+    )
+
+    samples = QUBODrivers.Sample{T,Int}[]
+    effective_time = mktempdir() do temp_path
         file_path = joinpath(temp_path, "model.qubo")
 
         args = _mqlib_args(;
@@ -97,7 +177,7 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
             _print_header(silent, heuristic)
 
             t = 0.0
-            
+
             for i = 1:num_reads
                 lines = readlines(cmd)
                 info  = split(lines[begin], ',')
@@ -118,11 +198,273 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
 
             _print_footer(silent)
 
-            metadata["time"]["effective"] = t
+            t
         end
     end
 
-    return QUBOTools.SampleSet{T}(samples, metadata; sense = :max, domain = :bool)
+    return samples, effective_time
+end
+
+function _sample_with_c_api(
+    ::Type{T},
+    n::Integer,
+    L,
+    Q,
+    α,
+    β;
+    num_reads::Integer,
+    silent::Bool,
+    heuristic::Union{String,Nothing},
+    random_seed::Union{Integer,Nothing},
+    run_time_limit::Float64,
+) where {T}
+    linear, quadratic_i, quadratic_j, quadratic_value = _mqlib_problem_data(n, L, Q)
+    samples = QUBODrivers.Sample{T,Int}[]
+
+    _print_header(silent, heuristic)
+
+    t = 0.0
+    for i = 1:num_reads
+        result = _mqlib_solve_qubo(
+            n,
+            linear,
+            quadratic_i,
+            quadratic_j,
+            quadratic_value;
+            heuristic,
+            random_seed = _mqlib_run_seed(random_seed),
+            run_time_limit,
+        )
+
+        ψ = Int.(result.solution)
+        λ = T(QUBOTools.value(ψ, L, Q, α, β))
+        push!(samples, QUBODrivers.Sample{T}(ψ, λ))
+
+        _print_iter(
+            silent,
+            i,
+            result.history_objective_values,
+            t .+ result.history_times_seconds,
+        )
+        t += result.runtime_seconds
+    end
+
+    _print_footer(silent)
+
+    return samples, t
+end
+
+function _mqlib_can_use_c_api(heuristic::Union{String,Nothing})
+    return _mqlib_has_c_api() &&
+           (!isnothing(heuristic) || _mqlib_has_hyperheuristic_data())
+end
+
+function _mqlib_has_c_api()
+    return isdefined(MQLib_jll, :libmqlib_c_api)
+end
+
+function _mqlib_library()
+    return getproperty(MQLib_jll, :libmqlib_c_api)
+end
+
+function _mqlib_hyperheuristic_data_dir()
+    return joinpath(MQLib_jll.artifact_dir, "share", "mqlib", "hhdata")
+end
+
+function _mqlib_has_hyperheuristic_data()
+    data_dir = _mqlib_hyperheuristic_data_dir()
+    return isdir(data_dir) && any(name -> endswith(name, ".rf"), readdir(data_dir))
+end
+
+function _mqlib_problem_data(n::Integer, L, Q)
+    linear = zeros(Cdouble, n)
+
+    for (i, value) in L
+        index = Int(i)
+        1 <= index <= n || error("Invalid QUBO linear index '$i'")
+        linear[index] += Cdouble(value)
+    end
+
+    quadratic_i = Int32[]
+    quadratic_j = Int32[]
+    quadratic_value = Cdouble[]
+
+    for (indices, value) in Q
+        i, j = Tuple(indices)
+        first = Int(i)
+        second = Int(j)
+        if first == second
+            1 <= first <= n || error("Invalid QUBO quadratic index '$i'")
+            linear[first] += Cdouble(value)
+        else
+            1 <= first <= n || error("Invalid QUBO quadratic index '$i'")
+            1 <= second <= n || error("Invalid QUBO quadratic index '$j'")
+            if second < first
+                first, second = second, first
+            end
+            push!(quadratic_i, Int32(first))
+            push!(quadratic_j, Int32(second))
+            push!(quadratic_value, Cdouble(value))
+        end
+    end
+
+    return linear, quadratic_i, quadratic_j, quadratic_value
+end
+
+function _mqlib_run_seed(random_seed::Union{Integer,Nothing})
+    if isnothing(random_seed)
+        return Int32(rand(0:65_535))
+    end
+
+    return Int32(mod(random_seed, 65_536))
+end
+
+function _mqlib_cstring(value::Union{AbstractString,Nothing})
+    bytes = Vector{UInt8}(codeunits(something(value, "")))
+    push!(bytes, 0x00)
+    return bytes
+end
+
+function _mqlib_status_message(status::Integer)
+    message = ccall(
+        (:mqlib_c_status_message, _mqlib_library()),
+        Cstring,
+        (Cint,),
+        Cint(status),
+    )
+
+    return unsafe_string(message)
+end
+
+function _mqlib_solve_qubo(
+    n::Integer,
+    linear::Vector{Cdouble},
+    quadratic_i::Vector{Int32},
+    quadratic_j::Vector{Int32},
+    quadratic_value::Vector{Cdouble};
+    heuristic::Union{String,Nothing},
+    random_seed::Integer,
+    run_time_limit::Float64,
+)
+    selected_capacity = Int32(64)
+    history_capacity = Int32(1024)
+
+    while true
+        call = _mqlib_call_solve_qubo(
+            n,
+            linear,
+            quadratic_i,
+            quadratic_j,
+            quadratic_value;
+            heuristic,
+            random_seed,
+            run_time_limit,
+            selected_capacity,
+            history_capacity,
+        )
+
+        status = call.status
+        result = call.result
+        if status == _MQLIB_STATUS_BUFFER_TOO_SMALL &&
+           (result.selected_heuristic_length > selected_capacity ||
+            result.history_length > history_capacity)
+            selected_capacity = max(selected_capacity, result.selected_heuristic_length)
+            history_capacity = max(history_capacity, result.history_length)
+            continue
+        elseif status != _MQLIB_STATUS_OK
+            error("MQLib C API failed: $(_mqlib_status_message(status))")
+        end
+
+        history_length = Int(result.history_length)
+        return (
+            objective_value = result.objective_value,
+            runtime_seconds = result.runtime_seconds,
+            solution = copy(call.solution[1:Int(result.solution_length)]),
+            selected_heuristic = _mqlib_selected_heuristic(
+                call.selected_heuristic,
+                result.selected_heuristic_length,
+            ),
+            history_objective_values = copy(call.history_objective_values[1:history_length]),
+            history_times_seconds = copy(call.history_times_seconds[1:history_length]),
+        )
+    end
+end
+
+function _mqlib_call_solve_qubo(
+    n::Integer,
+    linear::Vector{Cdouble},
+    quadratic_i::Vector{Int32},
+    quadratic_j::Vector{Int32},
+    quadratic_value::Vector{Cdouble};
+    heuristic::Union{String,Nothing},
+    random_seed::Integer,
+    run_time_limit::Float64,
+    selected_capacity::Integer,
+    history_capacity::Integer,
+)
+    solution = Vector{Int32}(undef, n)
+    selected_heuristic = Vector{UInt8}(undef, selected_capacity)
+    history_objective_values = Vector{Cdouble}(undef, history_capacity)
+    history_times_seconds = Vector{Cdouble}(undef, history_capacity)
+    heuristic_string = _mqlib_cstring(heuristic)
+    hhdata_dir = _mqlib_cstring(_mqlib_hyperheuristic_data_dir())
+
+    input = _MQLibCQUBOInput(
+        _MQLIB_C_ABI_VERSION,
+        Int32(n),
+        pointer(linear),
+        Int64(length(quadratic_value)),
+        pointer(quadratic_i),
+        pointer(quadratic_j),
+        pointer(quadratic_value),
+        _MQLIB_C_INDEX_BASE_ONE,
+        pointer(heuristic_string),
+        Cdouble(run_time_limit),
+        Int32(random_seed),
+        pointer(hhdata_dir),
+    )
+    result = _MQLibCQUBOResult(
+        _MQLIB_C_ABI_VERSION,
+        0.0,
+        0.0,
+        pointer(solution),
+        Int32(length(solution)),
+        pointer(selected_heuristic),
+        Int32(length(selected_heuristic)),
+        pointer(history_objective_values),
+        pointer(history_times_seconds),
+        Int32(length(history_objective_values)),
+        0,
+    )
+
+    input_ref = Ref(input)
+    result_ref = Ref(result)
+    status = GC.@preserve linear quadratic_i quadratic_j quadratic_value solution selected_heuristic history_objective_values history_times_seconds heuristic_string hhdata_dir begin
+        ccall(
+            (:mqlib_solve_qubo, _mqlib_library()),
+            Cint,
+            (Ref{_MQLibCQUBOInput}, Ref{_MQLibCQUBOResult}),
+            input_ref,
+            result_ref,
+        )
+    end
+
+    return (
+        status = status,
+        result = result_ref[],
+        solution,
+        selected_heuristic,
+        history_objective_values,
+        history_times_seconds,
+    )
+end
+
+function _mqlib_selected_heuristic(buffer::Vector{UInt8}, length::Integer)
+    if length <= 1
+        return ""
+    end
+
+    return String(buffer[1:(Int(length) - 1)])
 end
 
 function _print_header(silent::Bool, heuristic::Union{String,Nothing})

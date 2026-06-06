@@ -4,8 +4,11 @@ This directory defines the native C ABI for solving QUBO instances through
 MQLib without invoking the command-line executable.
 
 The files here are intended to be compiled with the upstream MQLib C++ sources
-and packaged as a shared library by `MQLib_jll`. The Julia wrapper does not call
-this ABI yet; that integration belongs to the follow-up shared-library issue.
+and packaged as a shared library by `MQLib_jll`. The Julia wrapper uses this
+ABI through the `libmqlib_c_api` product exported by `MQLib_jll` v0.1.2 and
+newer. The executable-backed path remains as a defensive fallback if the library
+product is unavailable, or if a default hyperheuristic solve needs model files
+that are not packaged in the JLL.
 
 ## API
 
@@ -45,7 +48,8 @@ The `MQLib_jll` build recipe in `jll/build_tarballs.jl` builds the existing
 `MQLib` executable product and a shared library product named
 `libmqlib_c_api`. The library compiles `c_api/src/mqlib_c_api.cpp` with the
 upstream MQLib implementation sources, excluding the upstream executable entry
-point (`src/main.cpp`), and installs this header as `mqlib_c_api.h`.
+point (`src/main.cpp`), installs this header as `mqlib_c_api.h`, and installs
+the hyperheuristic model files under `share/mqlib/hhdata`.
 
 Downstream Julia code should call the library product exported by `MQLib_jll`,
 for example:
