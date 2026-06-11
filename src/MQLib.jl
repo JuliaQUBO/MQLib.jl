@@ -65,15 +65,8 @@ QUBODrivers.@setup Optimizer begin
     end
 end
 
-# QUBODrivers v0.6.0 was tagged before these benchmark traits landed. Keep the
-# released 0.6 line loadable while activating the traits for newer 0.6 builds.
-if isdefined(QUBODrivers, :honors_final_reads)
-    QUBODrivers.honors_final_reads(::Type{<:Optimizer}) = true
-end
-
-if isdefined(QUBODrivers, :enforces_time_limit)
-    QUBODrivers.enforces_time_limit(::Type{<:Optimizer}) = true
-end
+QUBODrivers.honors_final_reads(::Type{<:Optimizer}) = true
+QUBODrivers.enforces_time_limit(::Type{<:Optimizer}) = true
 
 function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     n, L, Q, α, β = QUBOTools.qubo(sampler, :dict; sense = :max, domain = :bool)
