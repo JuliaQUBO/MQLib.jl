@@ -125,8 +125,10 @@ function test_public_c_api_bool_max_objectives()
     )
     Test.@test total_reads == 2
 
+    metadata = solution_metadata(model)
+    Test.@test metadata["seeds"]["sampler"] == 1234
+
     if has_benchmark_metadata_api()
-        metadata = solution_metadata(model)
         Test.@test isempty(QUBODrivers.validate_metadata(metadata))
         Test.@test metadata["origin"] == "MQLib.jl"
         Test.@test metadata["algorithm"]["name"] == "ALKHAMIS1998"
@@ -134,7 +136,6 @@ function test_public_c_api_bool_max_objectives()
         Test.@test metadata["backend"]["version"] == MQLib.__VERSION__
         Test.@test metadata["reads"]["number_of_reads"] == 2
         Test.@test metadata["reads"]["final_number_of_reads"] == 2
-        Test.@test metadata["seeds"]["sampler"] == 1234
         Test.@test metadata["time"]["effective"] > 0.0
     end
 
