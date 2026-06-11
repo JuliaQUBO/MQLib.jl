@@ -159,8 +159,8 @@ Test.@testset "Compatibility metadata" begin
 
     Test.@test compat["julia"] == "1.10"
     Test.@test compat["MQLib_jll"] == "0.1.2"
-    Test.@test compat["QUBODrivers"] == "0.4, 0.5"
-    Test.@test compat["QUBOTools"] == "0.12"
+    Test.@test compat["QUBODrivers"] == "0.4, 0.5, 0.6"
+    Test.@test compat["QUBOTools"] == "0.12, 0.13"
 
     ci = read(joinpath(root, ".github", "workflows", "ci.yml"), String)
     Test.@test occursin(r"version:\s*'1\.10'", ci)
