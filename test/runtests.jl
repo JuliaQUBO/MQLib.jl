@@ -3,6 +3,8 @@ import TOML
 import MQLib
 import MQLib: MOI, QUBODrivers
 
+const QUBOTools = MQLib.QUBOTools
+
 function first_available_tool(names::Vector{String})
     for name in names
         path = Sys.which(name)
@@ -31,6 +33,18 @@ function configure_public_default_hyperheuristic_smoke!(model)
     MOI.set(model, MOI.TimeLimitSec(), 0.02)
 
     return model
+end
+
+function solution_metadata(model)
+    raw = MOI.get(model, MOI.RawSolver())
+
+    return QUBOTools.metadata(QUBOTools.solution(raw))
+end
+
+function has_benchmark_metadata_api()
+    return isdefined(QUBODrivers, :validate_metadata) &&
+           isdefined(QUBODrivers, :honors_final_reads) &&
+           isdefined(QUBODrivers, :enforces_time_limit)
 end
 
 function test_public_default_hyperheuristic_succeeds()
@@ -111,6 +125,19 @@ function test_public_c_api_bool_max_objectives()
     )
     Test.@test total_reads == 2
 
+    if has_benchmark_metadata_api()
+        metadata = solution_metadata(model)
+        Test.@test isempty(QUBODrivers.validate_metadata(metadata))
+        Test.@test metadata["origin"] == "MQLib.jl"
+        Test.@test metadata["algorithm"]["name"] == "ALKHAMIS1998"
+        Test.@test metadata["backend"]["name"] == "MQLib"
+        Test.@test metadata["backend"]["version"] == MQLib.__VERSION__
+        Test.@test metadata["reads"]["number_of_reads"] == 2
+        Test.@test metadata["reads"]["final_number_of_reads"] == 2
+        Test.@test metadata["seeds"]["sampler"] == 1234
+        Test.@test metadata["time"]["effective"] > 0.0
+    end
+
     return nothing
 end
 
@@ -159,8 +186,8 @@ Test.@testset "Compatibility metadata" begin
 
     Test.@test compat["julia"] == "1.10"
     Test.@test compat["MQLib_jll"] == "0.1.2"
-    Test.@test compat["QUBODrivers"] == "0.4, 0.5, 0.6"
-    Test.@test compat["QUBOTools"] == "0.12, 0.13"
+    Test.@test compat["QUBODrivers"] == "0.6"
+    Test.@test compat["QUBOTools"] == "0.13"
 
     ci = read(joinpath(root, ".github", "workflows", "ci.yml"), String)
     Test.@test occursin(r"version:\s*'1\.10'", ci)
@@ -168,9 +195,20 @@ Test.@testset "Compatibility metadata" begin
 end
 
 Test.@testset "QUBODrivers" begin
-    QUBODrivers.test(MQLib.Optimizer) do model
-        MOI.set(model, MOI.Silent(), true)
-        MOI.set(model, MQLib.Heuristic(), first(MQLib.heuristics()))
+    if has_benchmark_metadata_api()
+        Test.@test QUBODrivers.supports_seed(MQLib.Optimizer)
+        Test.@test QUBODrivers.honors_final_reads(MQLib.Optimizer)
+        Test.@test QUBODrivers.enforces_time_limit(MQLib.Optimizer)
+
+        QUBODrivers.test(MQLib.Optimizer; benchmark_conformance = true) do model
+            MOI.set(model, MOI.Silent(), true)
+            MOI.set(model, MQLib.Heuristic(), first(MQLib.heuristics()))
+        end
+    else
+        QUBODrivers.test(MQLib.Optimizer) do model
+            MOI.set(model, MOI.Silent(), true)
+            MOI.set(model, MQLib.Heuristic(), first(MQLib.heuristics()))
+        end
     end
 end
 
