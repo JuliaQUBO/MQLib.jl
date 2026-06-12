@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.7.0 - 2026-06-12
+
 - Updated compatibility to QUBODrivers 0.6.1 and QUBOTools 0.13.
 - Added QUBODrivers benchmark metadata, final-read, and time-limit conformance
   declarations for the MQLib optimizer.
