@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Updated compatibility to QUBODrivers 0.6.1 and QUBOTools 0.13.
+- Added QUBODrivers benchmark metadata, final-read, and time-limit conformance
+  declarations for the MQLib optimizer.
+
 ## v0.6.0 - 2026-06-06
 
 - Added a Julia `ccall` solve path that uses `MQLib_jll.libmqlib_c_api`.

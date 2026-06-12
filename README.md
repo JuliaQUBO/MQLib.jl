@@ -36,7 +36,7 @@ optimize!(model)
 
 ## Selecting Heuristics
 
-This wrapper allows one to access all 39 QUBO and Max-Cut Heuristics provided by [MQLib](https://github.com/MQLib/MQLib).
+This wrapper allows one to access the QUBO and Max-Cut heuristics provided by [MQLib](https://github.com/MQLib/MQLib).
 Selecting the method to be used can be achieved via JuMP's attribute interface:
 
 ```julia
@@ -54,3 +54,13 @@ To list available heuristics and their descriptions, run:
 ```julia
 MQLib.show_heuristics()
 ```
+
+## Reads, Seeds, and Time Limits
+
+MQLib.jl supports the standard `QUBODrivers.RandomSeed()` attribute through the
+raw `"seed"` optimizer attribute. `QUBODrivers.FinalNumberOfReads()` controls
+the number of emitted samples; when it is unset, it falls back to `"num_reads"`.
+
+`MOI.TimeLimitSec()` is divided evenly across the emitted reads and passed to
+MQLib as the per-heuristic runtime limit. If no time limit is set, each read
+uses a one-second total default split across the requested reads.

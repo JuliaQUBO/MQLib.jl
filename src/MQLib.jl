@@ -65,17 +65,26 @@ QUBODrivers.@setup Optimizer begin
     end
 end
 
+QUBODrivers.honors_final_reads(::Type{<:Optimizer}) = true
+QUBODrivers.enforces_time_limit(::Type{<:Optimizer}) = true
+
 function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     n, L, Q, α, β = QUBOTools.qubo(sampler, :dict; sense = :max, domain = :bool)
 
-    num_reads      = MOI.get(sampler, MQLib.NumberOfReads())
-    silent         = MOI.get(sampler, MOI.Silent())
-    heuristic      = MOI.get(sampler, MQLib.Heuristic())
-    random_seed    = MOI.get(sampler, MQLib.RandomSeed())
-    time_limit_sec = MOI.get(sampler, MOI.TimeLimitSec())
+    num_reads       = MOI.get(sampler, MQLib.NumberOfReads())
+    final_num_reads = _mqlib_final_number_of_reads(sampler, num_reads)
+    silent          = MOI.get(sampler, MOI.Silent())
+    heuristic       = MOI.get(sampler, MQLib.Heuristic())
+    random_seed     = MOI.get(sampler, MQLib.RandomSeed())
+    metadata_seed   = random_seed
+    time_limit_sec  = MOI.get(sampler, MOI.TimeLimitSec())
 
     if num_reads <= 0
         error("Number of reads must be a positive integer")
+    end
+
+    if isnothing(final_num_reads) || final_num_reads <= 0
+        error("Final number of reads must be a positive integer")
     end
 
     if !isnothing(heuristic) && !haskey(_HEURISTICS, heuristic)
@@ -87,19 +96,10 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
     end
 
     run_time_limit = if isnothing(time_limit_sec)
-        1.0 / num_reads
+        1.0 / final_num_reads
     else
-        time_limit_sec / num_reads
+        time_limit_sec / final_num_reads
     end
-
-    metadata = Dict{String,Any}(
-        "time"   => Dict{String,Any}(),
-        "origin" => Dict{String,Any}(
-            "name"      => "MQLib",
-            "version"   => __VERSION__,
-            "heuristic" => heuristic,
-        ),
-    )
 
     samples, effective_time = if _mqlib_can_use_c_api(heuristic)
         _sample_with_c_api(
@@ -109,7 +109,7 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
             Q,
             α,
             β;
-            num_reads,
+            num_reads = final_num_reads,
             silent,
             heuristic,
             random_seed,
@@ -123,7 +123,7 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
             Q,
             α,
             β;
-            num_reads,
+            num_reads = final_num_reads,
             silent,
             heuristic,
             random_seed,
@@ -131,9 +131,77 @@ function QUBODrivers.sample(sampler::Optimizer{T}) where {T}
         )
     end
 
-    metadata["time"]["effective"] = effective_time
+    metadata = _mqlib_metadata(
+        heuristic;
+        final_num_reads,
+        sample_count = length(samples),
+        effective_time,
+        random_seed = metadata_seed,
+    )
 
     return QUBOTools.SampleSet{T}(samples, metadata; sense = :max, domain = :bool)
+end
+
+function _mqlib_final_number_of_reads(sampler::Optimizer, num_reads::Integer)
+    if isdefined(QUBODrivers, :final_number_of_reads)
+        return QUBODrivers.final_number_of_reads(sampler)
+    else
+        return num_reads
+    end
+end
+
+function _mqlib_metadata(
+    heuristic::Union{String,Nothing};
+    final_num_reads::Integer,
+    sample_count::Integer,
+    effective_time::Real,
+    random_seed::Union{Integer,Nothing},
+)
+    if isdefined(QUBODrivers, :_sampler_metadata)
+        metadata = QUBODrivers._sampler_metadata(
+            origin                = "MQLib.jl",
+            algorithm_name        = _mqlib_algorithm_name(heuristic),
+            backend_name          = "MQLib",
+            backend_version       = __VERSION__,
+            execution_mode        = _mqlib_execution_mode(heuristic),
+            optimizer_evaluations = final_num_reads,
+            number_of_reads       = final_num_reads,
+            final_number_of_reads = sample_count,
+            status                = "locally_solved",
+            termination_status    = MOI.LOCALLY_SOLVED,
+        )
+        metadata["seeds"] = _mqlib_seed_metadata(random_seed)
+        metadata["time"] = Dict{String,Any}("effective" => effective_time)
+
+        return metadata
+    else
+        return Dict{String,Any}(
+            "time"   => Dict{String,Any}("effective" => effective_time),
+            "seeds"  => _mqlib_seed_metadata(random_seed),
+            "origin" => Dict{String,Any}(
+                "name"      => "MQLib",
+                "version"   => __VERSION__,
+                "heuristic" => heuristic,
+            ),
+        )
+    end
+end
+
+function _mqlib_seed_metadata(random_seed::Union{Integer,Nothing})
+    seeds = Dict{String,Any}()
+    if !isnothing(random_seed)
+        seeds["sampler"] = random_seed
+    end
+
+    return seeds
+end
+
+function _mqlib_algorithm_name(heuristic::Union{String,Nothing})
+    return something(heuristic, "Hyper-Heuristic")
+end
+
+function _mqlib_execution_mode(heuristic::Union{String,Nothing})
+    return isnothing(heuristic) ? "hyperheuristic" : "heuristic"
 end
 
 function _sample_with_executable(
