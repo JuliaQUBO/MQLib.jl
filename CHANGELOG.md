@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v0.7.1 - 2026-06-23
+
+- Allowed QUBOTools 0.14 while retaining QUBOTools 0.13 compatibility.
+
 ## v0.7.0 - 2026-06-12
 
 - Updated compatibility to QUBODrivers 0.6.1 and QUBOTools 0.13.
