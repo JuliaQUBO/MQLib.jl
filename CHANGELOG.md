@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v0.7.2 - 2026-06-24
+
+- Allowed QUBOTools 0.15 while retaining QUBOTools 0.13 and 0.14 compatibility.
+- Made the QUBODrivers 0.6 compatibility range explicit so the package can
+  resolve with QUBODrivers 0.6.4 and the current JuliaQUBO stack.
+
 ## v0.7.1 - 2026-06-23
 
 - Allowed QUBOTools 0.14 while retaining QUBOTools 0.13 compatibility.

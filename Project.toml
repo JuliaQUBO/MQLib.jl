@@ -1,7 +1,7 @@
 name = "MQLib"
 uuid = "16f11440-1623-44c9-850c-358a6c72f3c9"
 authors = ["pedromxavier <mail@pedro.ϵλ>", "pedroripper <pedroripper@psr-inc.com>", "David E. Bernal Neira <dbernaln@purdue.edu>"]
-version = "0.7.1"
+version = "0.7.2"
 
 [deps]
 MQLib_jll = "4dedf8fe-8d9a-5fb8-8563-19379e8d5c54"
@@ -14,6 +14,6 @@ QUBOTools = "60eb5b62-0a39-4ddc-84c5-97d2adff9319"
 MQLib_jll        = "0.1.2"
 MathOptInterface = "1"
 Printf           = "1"
-QUBOTools        = "0.13, 0.14"
-QUBODrivers      = "0.6.1"
+QUBOTools        = "0.13, 0.14, 0.15"
+QUBODrivers      = "0.6.1 - 0.6"
 julia            = "1.10"
