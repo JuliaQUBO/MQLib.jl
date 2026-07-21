@@ -6,6 +6,16 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 jobs:
+  native-c-abi:
+    name: Native C ABI smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build shared library and execute C clients
+        env:
+          MQLIB_UPSTREAM_REF: 585496274af5abb0849d0d47e135496b4688680b
+        run: bash test/native_c_api_smoke.sh
+
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
@@ -30,13 +40,6 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
-      - name: Native C ABI smoke test
-        if: runner.os == 'Linux'
-        env:
-          MQLIB_UPSTREAM_REF: 585496274af5abb0849d0d47e135496b4688680b
-        run: bash test/native_c_api_smoke.sh
       - uses: julia-actions/julia-runtest@v1
-      # - uses: julia-actions/julia-processcoverage@v1
-      # - uses: codecov/codecov-action@v2
-      #   with:
-      #     file: lcov.info
+        with:
+          coverage: false
