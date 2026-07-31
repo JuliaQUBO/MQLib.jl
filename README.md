@@ -1,5 +1,5 @@
 # MQLib.jl
-[![DOI](https://zenodo.org/badge/568213607.svg)](https://zenodo.org/badge/latestdoi/568213607)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7511329.svg)](https://doi.org/10.5281/zenodo.7511329)
 [![QUBODRIVERS](https://img.shields.io/badge/Powered%20by-QUBODrivers.jl-%20%234063d8)](https://github.com/JuliaQUBO/QUBODrivers.jl)
 
 [MQLib](https://github.com/MQLib/MQLib) wrapper for JuMP.
@@ -54,6 +54,27 @@ To list available heuristics and their descriptions, run:
 ```julia
 MQLib.show_heuristics()
 ```
+
+## Citation
+
+For work that uses this Julia wrapper, cite `MQLib.jl` with its
+[Zenodo concept DOI](https://doi.org/10.5281/zenodo.7511329). The concept DOI is
+the evergreen software identifier and resolves to the latest archived wrapper
+release. Citation metadata is available in [`CITATION.cff`](CITATION.cff).
+
+For exact-version reproducibility, cite the corresponding Zenodo version DOI.
+The archive for `MQLib.jl` v0.7.3 is
+[10.5281/zenodo.20926960](https://doi.org/10.5281/zenodo.20926960).
+
+This wrapper depends on the separately maintained upstream
+[MQLib project](https://github.com/MQLib/MQLib). When using its heuristics or
+implementation, also cite Dunning, Gupta, and Silberholz,
+[“What Works Best When? A Systematic Evaluation of Heuristics for Max-Cut and
+QUBO”](https://doi.org/10.1287/ijoc.2017.0798). The `MQLib.jl` DOI identifies
+this Julia wrapper; it does not identify or archive upstream MQLib.
+
+For general discussion or use of the JuliaQUBO ecosystem, cite the
+[QUBO.jl ecosystem article](https://doi.org/10.1080/10556788.2026.2702926).
 
 ## Reads, Seeds, and Time Limits
 

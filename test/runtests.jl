@@ -319,3 +319,6 @@ Test.@testset "C ABI contract" begin
         )
     end
 end
+
+include("citation.jl")
+test_citation_metadata()
