@@ -62,8 +62,9 @@ For work that uses this Julia wrapper, cite `MQLib.jl` with its
 the evergreen software identifier and resolves to the latest archived wrapper
 release. Citation metadata is available in [`CITATION.cff`](CITATION.cff).
 
-For exact-version reproducibility, cite the corresponding Zenodo version DOI.
-The archive for `MQLib.jl` v0.7.3 is
+For exact-version reproducibility, cite the Zenodo version DOI recorded in that
+GitHub release and Zenodo record. For example, the archive for `MQLib.jl`
+v0.7.3 is
 [10.5281/zenodo.20926960](https://doi.org/10.5281/zenodo.20926960).
 
 This wrapper depends on the separately maintained upstream

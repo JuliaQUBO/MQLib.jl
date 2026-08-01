@@ -33,11 +33,9 @@ or archive the upstream [MQLib](https://github.com/MQLib/MQLib) project.
 - [ ] Confirm the description and related identifiers attribute upstream MQLib
       without implying that the wrapper's DOI archives upstream MQLib.
 - [ ] Record the published Zenodo version DOI in the GitHub release notes.
-- [ ] Update the new version DOI everywhere it is pinned: the `identifiers`
-      entry and its `description` in `CITATION.cff`, the exact-version archive
-      sentence in the README "Citation" section, and `version_doi` in
-      `test/citation.jl`. Re-run
-      `julia --project -e 'using Pkg; Pkg.test()'`.
+      Keep the concept DOI in `CITATION.cff`; Zenodo assigns the version DOI
+      only after it processes the GitHub release, so do not pin a version DOI
+      in the release archive's CFF.
 - [ ] Verify the version DOI resolves to that exact archive and the concept DOI
       resolves to the latest archived release:
 

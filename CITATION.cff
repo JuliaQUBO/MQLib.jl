@@ -23,10 +23,6 @@ license: MIT
 version: "0.7.3"
 date-released: 2026-06-26
 doi: "10.5281/zenodo.7511329"
-identifiers:
-  - type: doi
-    value: "10.5281/zenodo.20926960"
-    description: "Zenodo DOI for version 0.7.3"
 keywords:
   - Julia
   - Max-Cut
