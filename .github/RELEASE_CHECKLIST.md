@@ -21,16 +21,23 @@ or archive the upstream [MQLib](https://github.com/MQLib/MQLib) project.
 
 ## After publishing the GitHub release
 
-- [ ] Create a **new version** from the existing Zenodo record; do not create a
-      new upload or concept DOI.
-- [ ] Archive the official GitHub release and confirm its tag, version, MIT
-      license, repository URL, Julia package UUID
+- [ ] Confirm the Zenodo GitHub integration published a **new version** under
+      the existing concept record automatically when TagBot created the GitHub
+      release. Do not deposit a new upload or concept DOI by hand; if the
+      integration is ever disabled, re-enable it rather than archiving
+      manually.
+- [ ] Confirm the archived Zenodo record matches the official GitHub release's
+      tag and version, MIT license, repository URL, Julia package UUID
       (`16f11440-1623-44c9-850c-358a6c72f3c9`), creators, affiliations, and
       ORCIDs.
 - [ ] Confirm the description and related identifiers attribute upstream MQLib
       without implying that the wrapper's DOI archives upstream MQLib.
-- [ ] Publish the Zenodo version and record its version DOI in the GitHub
-      release notes.
+- [ ] Record the published Zenodo version DOI in the GitHub release notes.
+- [ ] Update the new version DOI everywhere it is pinned: the `identifiers`
+      entry and its `description` in `CITATION.cff`, the exact-version archive
+      sentence in the README "Citation" section, and `version_doi` in
+      `test/citation.jl`. Re-run
+      `julia --project -e 'using Pkg; Pkg.test()'`.
 - [ ] Verify the version DOI resolves to that exact archive and the concept DOI
       resolves to the latest archived release:
 

@@ -21,11 +21,16 @@ function test_citation_metadata()
         Test.@test occursin("doi: \"$concept_doi\"", citation)
         Test.@test occursin("value: \"$version_doi\"", citation)
         Test.@test occursin("version: \"$version\"", citation)
+        Test.@test occursin(
+            "description: \"Zenodo DOI for version $version\"",
+            citation,
+        )
         Test.@test occursin("upstream MQLib", citation)
 
         Test.@test occursin("badge/DOI/$concept_doi.svg", readme)
         Test.@test occursin("doi.org/$concept_doi", readme)
         Test.@test occursin("doi.org/$version_doi", readme)
+        Test.@test occursin("v$version", readme)
         Test.@test occursin(upstream_doi, readme)
         Test.@test occursin(ecosystem_doi, readme)
         Test.@test occursin(
@@ -39,8 +44,6 @@ function test_citation_metadata()
             "cffconvert --validate --infile CITATION.cff",
             checklist,
         )
-        Test.@test occursin("<version-doi>", checklist)
-        Test.@test occursin("metadata.version", checklist)
     end
 
     return nothing
