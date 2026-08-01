@@ -7,9 +7,13 @@ or archive the upstream [MQLib](https://github.com/MQLib/MQLib) project.
 
 ## Before tagging
 
-- [ ] Confirm at least two active JuliaQUBO maintainers have **Can manage**
-      access to the Zenodo record and all future versions. Use separate personal
-      accounts; do not share a Zenodo account, password, or API token.
+- [ ] Confirm the designated JuliaQUBO Zenodo owner retains **Can manage**
+      access to the record and all future versions. Record the owner and review
+      date in the ecosystem stewardship tracker, JuliaQUBO/QUBO.jl#66.
+- [ ] Revisit adding a backup manager annually or when maintainership changes.
+      A single-owner arrangement is accepted while no other maintainer has
+      volunteered; use personal accounts and never share a password or API
+      token.
 - [ ] Update the version in `Project.toml`, the release date and version in
       `CITATION.cff`, and the release notes in `CHANGELOG.md`.
 - [ ] Keep the concept DOI in `CITATION.cff` and the README badge unchanged.
