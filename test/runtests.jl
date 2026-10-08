@@ -5,6 +5,8 @@ import MQLib: MOI, QUBODrivers
 
 const QUBOTools = MQLib.QUBOTools
 
+_compat_entries(value::AbstractString) = strip.(split(value, ','))
+
 function first_available_tool(names::Vector{String})
     for name in names
         path = Sys.which(name)
@@ -178,9 +180,12 @@ Test.@testset "Compatibility metadata" begin
     compat = project["compat"]
 
     Test.@test compat["julia"] == "1.10"
-    Test.@test compat["MQLib_jll"] == "0.1.2"
-    Test.@test compat["QUBODrivers"] == "0.6.1 - 0.6"
-    Test.@test compat["QUBOTools"] == "0.13, 0.14, 0.15, 0.16"
+    Test.@test "0.1.2" in _compat_entries(compat["MQLib_jll"])
+    Test.@test "0.6.1 - 0.6" in _compat_entries(compat["QUBODrivers"])
+    Test.@test all(
+        version -> version in _compat_entries(compat["QUBOTools"]),
+        ("0.13", "0.14", "0.15", "0.16"),
+    )
 
     ci = read(joinpath(root, ".github", "workflows", "ci.yml"), String)
     Test.@test occursin(r"version:\s*'1\.10'", ci)
