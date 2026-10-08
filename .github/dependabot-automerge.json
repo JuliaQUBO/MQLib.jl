@@ -1,0 +1,16 @@
+{
+  "repository": "JuliaQUBO/MQLib.jl",
+  "required_checks": [
+    "Native C ABI smoke test",
+    "Julia 1.10 - ubuntu-latest - x64 - pull_request",
+    "Julia 1 - ubuntu-latest - x64 - pull_request",
+    "Julia 1 - windows-latest - x64 - pull_request",
+    "Dependabot policy"
+  ],
+  "protected_checks": [
+    "Julia 1 - ubuntu-latest - x64 - pull_request",
+    "Julia 1.10 - ubuntu-latest - x64 - pull_request",
+    "Julia 1 - windows-latest - x64 - pull_request"
+  ],
+  "publication": []
+}
