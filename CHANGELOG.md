@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed Julia 1.13 package loading by using the imported native-library binding
+  for C ABI calls, including status-message lookup and QUBO solving.
+- Added validated citation metadata, wrapper/upstream citation guidance, and a
+  release checklist for detecting Zenodo archival drift.
+
 ## v0.7.3 - 2026-06-26
 
 - Allowed QUBOTools 0.16 while retaining QUBOTools 0.13, 0.14, and 0.15

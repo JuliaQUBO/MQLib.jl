@@ -204,6 +204,10 @@ Test.@testset "QUBODrivers" begin
 end
 
 Test.@testset "Julia C ABI bridge" begin
+    # Exercise the status lookup as well as the solve call on every Julia CI lane.
+    Test.@test MQLib._mqlib_status_message(0) == "ok"
+    Test.@test MQLib._mqlib_status_message(2) == "invalid argument"
+
     linear_terms = Dict(1 => 5.0, 2 => 3.0, 3 => 1.0)
     quadratic_terms = Dict((1, 2) => -6.0, (2, 3) => -1.0)
     linear, quadratic_i, quadratic_j, quadratic_value =
@@ -324,3 +328,6 @@ Test.@testset "C ABI contract" begin
         )
     end
 end
+
+include("citation.jl")
+test_citation_metadata()

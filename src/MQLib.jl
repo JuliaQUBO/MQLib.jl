@@ -3,6 +3,7 @@ module MQLib
 using Printf
 
 import MQLib_jll
+import MQLib_jll: libmqlib_c_api
 import QUBOTools
 import QUBODrivers
 import MathOptInterface as MOI
@@ -331,10 +332,6 @@ function _mqlib_has_c_api()
     return isdefined(MQLib_jll, :libmqlib_c_api)
 end
 
-function _mqlib_library()
-    return getproperty(MQLib_jll, :libmqlib_c_api)
-end
-
 function _mqlib_hyperheuristic_data_dir()
     return joinpath(MQLib_jll.artifact_dir, "share", "mqlib", "hhdata")
 end
@@ -395,7 +392,7 @@ end
 
 function _mqlib_status_message(status::Integer)
     message = ccall(
-        (:mqlib_c_status_message, _mqlib_library()),
+        (:mqlib_c_status_message, libmqlib_c_api),
         Cstring,
         (Cint,),
         Cint(status),
@@ -509,7 +506,7 @@ function _mqlib_call_solve_qubo(
     result_ref = Ref(result)
     status = GC.@preserve linear quadratic_i quadratic_j quadratic_value solution selected_heuristic history_objective_values history_times_seconds heuristic_string hhdata_dir begin
         ccall(
-            (:mqlib_solve_qubo, _mqlib_library()),
+            (:mqlib_solve_qubo, libmqlib_c_api),
             Cint,
             (Ref{_MQLibCQUBOInput}, Ref{_MQLibCQUBOResult}),
             input_ref,

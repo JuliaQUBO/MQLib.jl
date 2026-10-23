@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: >-
+  If you use MQLib.jl, cite this wrapper using this metadata. Also cite the
+  upstream MQLib paper when using its heuristics, as described in the README.
+title: "MQLib.jl"
+type: software
+authors:
+  - family-names: "Bernal Neira"
+    given-names: "David E."
+    affiliation: "Purdue University"
+    orcid: "https://orcid.org/0000-0002-8308-5016"
+  - family-names: "Maciel Xavier"
+    given-names: "Pedro"
+    affiliation: "Purdue University"
+    orcid: "https://orcid.org/0000-0002-4678-4942"
+  - family-names: "Ripper"
+    given-names: "Pedro"
+abstract: >-
+  A Julia wrapper for the upstream MQLib implementations of heuristics for
+  Max-Cut and quadratic unconstrained binary optimization problems.
+repository-code: "https://github.com/JuliaQUBO/MQLib.jl"
+license: MIT
+version: "0.7.3"
+date-released: 2026-06-26
+doi: "10.5281/zenodo.7511329"
+keywords:
+  - Julia
+  - Max-Cut
+  - quadratic unconstrained binary optimization
+  - QUBO
+  - heuristics
