@@ -5,6 +5,60 @@ import MQLib: MOI, QUBODrivers
 
 const QUBOTools = MQLib.QUBOTools
 
+_compat_entries(value::AbstractString) = strip.(split(value, ','))
+
+function _compat_upper_bound(s::AbstractString)::Union{VersionNumber,Nothing}
+    v = tryparse(VersionNumber, s)
+    isnothing(v) && return nothing
+    n_dots = count(==('.'), s)
+    if n_dots == 0
+        return VersionNumber(v.major, typemax(UInt32), typemax(UInt32))
+    elseif n_dots == 1
+        return VersionNumber(v.major, v.minor, typemax(UInt32))
+    else
+        return v
+    end
+end
+
+function _compat_entry_lower_bound(entry::AbstractString)::Union{VersionNumber,Nothing}
+    s = strip(entry)
+    isempty(s) && return nothing
+    startswith(s, '<') && return v"0.0.0"
+
+    if occursin('-', s)
+        parts = strip.(split(s, '-'))
+        length(parts) == 2 || return nothing
+        all(!isempty, parts) || return nothing
+        lower = tryparse(VersionNumber, parts[1])
+        upper = _compat_upper_bound(parts[2])
+        (isnothing(lower) || isnothing(upper) || lower > upper) && return nothing
+        return lower
+    elseif startswith(s, ">=")
+        return tryparse(VersionNumber, strip(s[3:end]))
+    elseif startswith(s, ('^', '~', '='))
+        return tryparse(VersionNumber, strip(s[2:end]))
+    else
+        return tryparse(VersionNumber, s)
+    end
+end
+
+function _compat_meets_policy(
+    spec::AbstractString;
+    min_version::VersionNumber,
+    required_entries,
+)::Bool
+    entries = _compat_entries(spec)
+    isempty(entries) && return false
+    all(req -> req in entries, required_entries) || return false
+
+    for entry in entries
+        lower = _compat_entry_lower_bound(entry)
+        (isnothing(lower) || lower < min_version) && return false
+    end
+
+    return true
+end
+
 function first_available_tool(names::Vector{String})
     for name in names
         path = Sys.which(name)
@@ -178,9 +232,65 @@ Test.@testset "Compatibility metadata" begin
     compat = project["compat"]
 
     Test.@test compat["julia"] == "1.10"
-    Test.@test compat["MQLib_jll"] == "0.1.2"
-    Test.@test compat["QUBODrivers"] == "0.6.1 - 0.6"
-    Test.@test compat["QUBOTools"] == "0.13, 0.14, 0.15, 0.16"
+    Test.@test _compat_meets_policy(
+        compat["MQLib_jll"];
+        min_version = v"0.1.2",
+        required_entries = ("0.1.2",),
+    )
+    Test.@test _compat_meets_policy(
+        compat["QUBODrivers"];
+        min_version = v"0.6.1",
+        required_entries = ("0.6.1 - 0.6",),
+    )
+    Test.@test _compat_meets_policy(
+        compat["QUBOTools"];
+        min_version = v"0.13.0",
+        required_entries = ("0.13", "0.14", "0.15", "0.16"),
+    )
+
+    # Forward Dependabot expansions remain accepted
+    Test.@test _compat_meets_policy(
+        "0.1.2, 0.2";
+        min_version = v"0.1.2",
+        required_entries = ("0.1.2",),
+    )
+    Test.@test _compat_meets_policy(
+        "0.6.1 - 0.6, 0.7";
+        min_version = v"0.6.1",
+        required_entries = ("0.6.1 - 0.6",),
+    )
+    Test.@test _compat_meets_policy(
+        "0.13, 0.14, 0.15, 0.16, 0.17";
+        min_version = v"0.13.0",
+        required_entries = ("0.13", "0.14", "0.15", "0.16"),
+    )
+
+    # Lower-bound regressions are rejected
+    Test.@test !_compat_meets_policy(
+        "0.1.1, 0.1.2";
+        min_version = v"0.1.2",
+        required_entries = ("0.1.2",),
+    )
+    Test.@test !_compat_meets_policy(
+        "0.1, 0.1.2";
+        min_version = v"0.1.2",
+        required_entries = ("0.1.2",),
+    )
+    Test.@test !_compat_meets_policy(
+        "0.6, 0.6.1 - 0.6";
+        min_version = v"0.6.1",
+        required_entries = ("0.6.1 - 0.6",),
+    )
+    Test.@test !_compat_meets_policy(
+        "0.6.0 - 0.6, 0.6.1 - 0.6";
+        min_version = v"0.6.1",
+        required_entries = ("0.6.1 - 0.6",),
+    )
+    Test.@test !_compat_meets_policy(
+        "0.12, 0.13, 0.14, 0.15, 0.16";
+        min_version = v"0.13.0",
+        required_entries = ("0.13", "0.14", "0.15", "0.16"),
+    )
 
     ci = read(joinpath(root, ".github", "workflows", "ci.yml"), String)
     Test.@test occursin(r"version:\s*'1\.10'", ci)
