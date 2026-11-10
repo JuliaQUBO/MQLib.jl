@@ -40,8 +40,7 @@ status atomically when merging; the workflow never bypasses it.
 
 When `main` advances, update
 existing Dependabot branches with "Update branch" or `@dependabot rebase` and
-wait for new CI. The policy runs after configured workflow completions, every
-15 minutes, and through manual dispatch. Repository native auto-merge settings
+wait for new CI. The policy runs after configured workflow completions, daily, and through manual dispatch. Repository native auto-merge settings
 only control manually queued requests; this workflow merges immediately after
 verifying all gates.
 
